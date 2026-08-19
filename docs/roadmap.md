@@ -228,3 +228,20 @@ minimapa.
 - **Excluir board só era possível pela sidebar** — adicionado botão de
   excluir (com confirmação) direto na navbar do board, junto com
   "Compartilhar".
+
+## Bugs corrigidos (15 de agosto de 2026)
+
+- **"Usuário já existe" aparecia em qualquer tentativa de cadastro, mesmo
+  com nomes novos** — a rota `/api/auth/signup` tratava QUALQUER erro do
+  Supabase (chave de service role errada, RLS mal configurada, domínio do
+  shadow email rejeitado, etc.) como "nome de usuário já em uso", escondendo
+  a causa real. Agora só mostra essa mensagem quando é genuinamente um
+  duplicado (erro do GoTrue contendo "already registered"/"already exists",
+  ou `unique_violation` do Postgres na tabela `profiles`); qualquer outro
+  erro é logado no servidor (nunca a senha) e reportado com uma mensagem
+  honesta ("Não foi possível criar a conta agora"). Se isso continuar
+  aparecendo depois dessa correção, o log do servidor vai mostrar a causa
+  real em vez de esconder atrás de uma mensagem genérica errada.
+- **Botão de mostrar/ocultar senha** — adicionado em login e cadastro
+  (`features/auth/PasswordInput.tsx`, componente compartilhado pelos dois
+  formulários).

@@ -42,7 +42,30 @@ export async function POST(request: Request) {
     // is what actually blocks duplicate usernames at the auth layer. The
     // `profiles.username` unique constraint is the second, belt-and-braces
     // layer in case of a race between two signups.
-    return NextResponse.json({ error: "Este nome de usuário já está em uso." }, { status: 409 });
+    //
+    // IMPORTANT: this used to report "username already in use" for ANY
+    // failure here, which was actively misleading — a misconfigured
+    // service-role key, a Supabase project setting blocking the shadow
+    // email's domain, rate limiting on Supabase's own side, etc. would all
+    // show up to the user as "that username is taken" even for a brand new
+    // username, with the real cause invisible. Only the specific
+    // already-registered case gets that message now; everything else is
+    // logged server-side (never logs the password) and reported honestly.
+    const message = createError?.message?.toLowerCase() ?? "";
+    const isDuplicate =
+      message.includes("already been registered") ||
+      message.includes("already registered") ||
+      message.includes("already exists");
+
+    if (isDuplicate) {
+      return NextResponse.json({ error: "Este nome de usuário já está em uso." }, { status: 409 });
+    }
+
+    console.error("[signup] admin.createUser failed:", createError?.message ?? "no user returned");
+    return NextResponse.json(
+      { error: "Não foi possível criar a conta agora. Tente novamente em instantes." },
+      { status: 500 },
+    );
   }
 
   const { error: profileError } = await admin
@@ -54,7 +77,21 @@ export async function POST(request: Request) {
     // account that can never be signed up again (its email is taken) nor
     // logged into (no profile row, so resolve_login_email returns nothing).
     await admin.auth.admin.deleteUser(created.user.id);
-    return NextResponse.json({ error: "Este nome de usuário já está em uso." }, { status: 409 });
+
+    // Postgres unique_violation is the only case that's genuinely "this
+    // username is taken" — anything else (RLS, constraint mismatch,
+    // connection issue) gets logged and reported honestly instead of
+    // masquerading as a duplicate.
+    const isDuplicate = profileError.code === "23505";
+    if (isDuplicate) {
+      return NextResponse.json({ error: "Este nome de usuário já está em uso." }, { status: 409 });
+    }
+
+    console.error("[signup] profile insert failed:", profileError.message);
+    return NextResponse.json(
+      { error: "Não foi possível criar a conta agora. Tente novamente em instantes." },
+      { status: 500 },
+    );
   }
 
   // Sign the new user in immediately, on the request-bound server client so

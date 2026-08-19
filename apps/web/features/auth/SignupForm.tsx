@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@nexus/design-system";
 import { Check, X } from "lucide-react";
 import { validatePassword, validateUsername } from "../../lib/auth/validation";
+import { PasswordInput } from "./PasswordInput";
 
 export function SignupForm() {
   const router = useRouter();
@@ -115,14 +116,12 @@ export function SignupForm() {
         <label htmlFor="password" className="mb-1.5 block text-xs font-medium text-text-muted">
           Senha
         </label>
-        <input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-md border border-border bg-surface-elevated px-3 py-2 text-sm text-text outline-none transition-colors focus:border-signal"
         />
         {password.length > 0 ? (
           <ul className="mt-1.5 space-y-0.5 text-xs">
@@ -137,13 +136,12 @@ export function SignupForm() {
         <label htmlFor="confirm" className="mb-1.5 block text-xs font-medium text-text-muted">
           Confirmar senha
         </label>
-        <input
+        <PasswordInput
           id="confirm"
-          type="password"
           autoComplete="new-password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          className="w-full rounded-md border border-border bg-surface-elevated px-3 py-2 text-sm text-text outline-none transition-colors focus:border-signal"
+          invalid={Boolean(confirmError)}
         />
         {confirmError ? <p className="mt-1 text-xs text-error">{confirmError}</p> : null}
       </div>

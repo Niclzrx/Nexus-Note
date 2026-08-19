@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@nexus/design-system";
 import { validatePassword, validateUsername } from "../../lib/auth/validation";
+import { PasswordInput } from "./PasswordInput";
 
 export function LoginForm() {
   const router = useRouter();
@@ -68,15 +69,13 @@ export function LoginForm() {
         <label htmlFor="password" className="mb-1.5 block text-xs font-medium text-text-muted">
           Senha
         </label>
-        <input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-md border border-border bg-surface-elevated px-3 py-2 text-sm text-text outline-none transition-colors focus:border-signal"
-          aria-invalid={Boolean(fieldErrors.password)}
+          invalid={Boolean(fieldErrors.password)}
         />
         {fieldErrors.password ? <p className="mt-1 text-xs text-error">{fieldErrors.password}</p> : null}
       </div>
