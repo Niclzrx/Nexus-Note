@@ -66,6 +66,7 @@ export function FloatingToolbar({
     <Panel
       elevated
       className="pointer-events-auto absolute bottom-5 left-1/2 z-floating-toolbar flex max-w-[92vw] -translate-x-1/2 items-center gap-1 overflow-x-auto p-1.5"
+      onPointerDown={(e) => e.stopPropagation()}
     >
       {navigationTools.map((tool) => (
         <IconButton

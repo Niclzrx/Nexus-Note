@@ -49,6 +49,7 @@ export function PropertyPanel({
         // Desktop: the original floating top-right panel.
         "md:absolute md:inset-x-auto md:bottom-auto md:right-4 md:top-4 md:w-64 md:rounded-lg",
       )}
+      onPointerDown={(e) => e.stopPropagation()}
     >
       <div className="border-b border-border px-3.5 py-2.5">
         <h3 className="font-display text-xs font-semibold uppercase tracking-wide text-text-muted">
