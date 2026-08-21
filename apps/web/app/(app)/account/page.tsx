@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@nexus/design-system";
-import { LogOut, User, Calendar, FileText, Users } from "lucide-react";
+import { Button, IconButton } from "@nexus/design-system";
+import { LogOut, User, Calendar, FileText, Users, Menu } from "lucide-react";
 import { useAuth } from "../../../hooks/use-auth";
 import { getDocumentCounts, type DocumentCounts } from "../../../lib/supabase/documents";
+import { useUiStore } from "../../../stores/ui-store";
 
 export default function AccountPage() {
   const { profile, loading, signOut } = useAuth();
   const [counts, setCounts] = useState<DocumentCounts | null>(null);
+  const toggleMobileSidebar = useUiStore((s) => s.toggleMobileSidebar);
 
   useEffect(() => {
     if (!profile) return;
@@ -33,11 +35,14 @@ export default function AccountPage() {
 
   return (
     <div className="nx-scroll h-full overflow-y-auto">
-      <header className="border-b border-border bg-surface px-8 py-5">
-        <h1 className="font-display text-xl font-semibold text-text">Sua conta</h1>
+      <header className="flex items-center gap-2 border-b border-border bg-surface px-4 py-4 sm:px-8 sm:py-5">
+        <IconButton label="Abrir menu" className="shrink-0 md:hidden" onClick={toggleMobileSidebar}>
+          <Menu />
+        </IconButton>
+        <h1 className="font-display text-lg font-semibold text-text sm:text-xl">Sua conta</h1>
       </header>
 
-      <div className="mx-auto max-w-lg px-8 py-8">
+      <div className="mx-auto max-w-lg px-4 py-6 sm:px-8 sm:py-8">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-signal/15 text-signal">
             <User className="h-5 w-5" />

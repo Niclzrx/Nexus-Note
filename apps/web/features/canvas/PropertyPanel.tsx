@@ -1,9 +1,10 @@
 "use client";
 
-import { Panel } from "@nexus/design-system";
+import { Panel, cx } from "@nexus/design-system";
 import type { AnyElement, Board } from "@nexus/types";
 import { Grid3x3, Group as GroupIcon, Trash2, Ungroup } from "lucide-react";
 import { TagEditor } from "./TagEditor";
+import { useIsMobile } from "../../hooks/use-media-query";
 
 interface PropertyPanelProps {
   selectedElements: AnyElement[];
@@ -28,11 +29,26 @@ export function PropertyPanel({
 }: PropertyPanelProps) {
   const single = selectedElements.length === 1 ? selectedElements[0] : null;
   const isGrouped = selectedElements.some((el) => el.groupId);
+  const isMobile = useIsMobile();
+
+  // On mobile there's no room to permanently dock a board-settings panel —
+  // it would sit over the canvas even with nothing selected. Desktop keeps
+  // it always visible (top-right, out of the way); mobile only surfaces it
+  // once there's something to actually act on.
+  if (isMobile && selectedElements.length === 0) return null;
 
   return (
     <Panel
       elevated
-      className="pointer-events-auto absolute right-4 top-4 z-panel w-64 shrink-0 overflow-hidden"
+      className={cx(
+        "pointer-events-auto z-panel overflow-hidden",
+        // Mobile: a bottom sheet, positioned above the floating toolbar
+        // rather than a small floating box that would crowd a narrow
+        // screen or overlap other controls.
+        "fixed inset-x-3 bottom-24 rounded-xl",
+        // Desktop: the original floating top-right panel.
+        "md:absolute md:inset-x-auto md:bottom-auto md:right-4 md:top-4 md:w-64 md:rounded-lg",
+      )}
     >
       <div className="border-b border-border px-3.5 py-2.5">
         <h3 className="font-display text-xs font-semibold uppercase tracking-wide text-text-muted">

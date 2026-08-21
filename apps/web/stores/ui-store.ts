@@ -21,6 +21,13 @@ interface UiState {
   theme: ThemeMode;
   resolvedTheme: "dark" | "light";
   sidebarCollapsed: boolean;
+  // Distinct from `sidebarCollapsed` (desktop's icon-only 56px mode): on
+  // mobile the sidebar is a full overlay drawer, closed by default, opened
+  // via a menu button. Kept as separate state rather than overloading
+  // `sidebarCollapsed` because the two mean different things ("narrow but
+  // visible" vs. "off-screen entirely") and a screen-size change shouldn't
+  // silently flip the other one's meaning.
+  mobileSidebarOpen: boolean;
   activeTool: CanvasTool;
   commandPaletteOpen: boolean;
   saveStatus: SaveStatus;
@@ -30,6 +37,8 @@ interface UiState {
   setTheme: (theme: ThemeMode) => Promise<void>;
   hydrateTheme: () => Promise<void>;
   toggleSidebar: () => void;
+  toggleMobileSidebar: () => void;
+  setMobileSidebarOpen: (open: boolean) => void;
   setActiveTool: (tool: CanvasTool) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setSaveStatus: (status: SaveStatus) => void;
@@ -53,6 +62,7 @@ export const useUiStore = create<UiState>((set) => ({
   theme: "dark",
   resolvedTheme: "dark",
   sidebarCollapsed: false,
+  mobileSidebarOpen: false,
   activeTool: "select",
   commandPaletteOpen: false,
   saveStatus: "idle",
@@ -75,6 +85,8 @@ export const useUiStore = create<UiState>((set) => ({
   },
 
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+  toggleMobileSidebar: () => set((s) => ({ mobileSidebarOpen: !s.mobileSidebarOpen })),
+  setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
   setActiveTool: (tool) => set({ activeTool: tool }),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
   setSaveStatus: (status) => set({ saveStatus: status }),

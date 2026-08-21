@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Board, ElementType, Point } from "@nexus/types";
-import { screenToWorld, screenRectToWorld, normalizeRect, clampZoom } from "@nexus/canvas";
+import { screenToWorld, screenRectToWorld, normalizeRect, clampZoom, zoomAtPoint } from "@nexus/canvas";
 import { useCanvasStore } from "../../stores/canvas-store";
 import { useElementStore } from "../../stores/element-store";
 import { useSelectionStore } from "../../stores/selection-store";
@@ -17,7 +17,7 @@ import { FloatingToolbar } from "./FloatingToolbar";
 import { PropertyPanel } from "./PropertyPanel";
 import { Minimap } from "./Minimap";
 
-type DragMode = "none" | "pan" | "marquee" | "move" | "resize" | "connect";
+type DragMode = "none" | "pan" | "marquee" | "move" | "resize" | "connect" | "pinch";
 
 const CREATABLE_TYPES: ElementType[] = [
   "note",
@@ -89,6 +89,17 @@ export function Canvas({ board }: { board: Board }) {
   const resizeStartWorld = useRef<Point>({ x: 0, y: 0 });
   const resizeStartSize = useRef({ width: 0, height: 0 });
   const resizeStartPos = useRef<Point>({ x: 0, y: 0 });
+  // Fase 6: multi-touch. Tracks every currently-down pointer on the
+  // container (keyed by pointerId) so a second finger touching down can be
+  // detected as the start of a pinch, distinct from a second unrelated
+  // pointerdown (e.g. a stylus hover or a mouse click during an active
+  // touch). `pinchStart` snapshots the state pinch deltas are computed
+  // against — captured once when the 2nd finger lands, not recomputed
+  // every frame, so drift doesn't accumulate across the gesture.
+  const activeTouches = useRef<Map<number, Point>>(new Map());
+  const pinchStart = useRef<{ distance: number; midpoint: Point; viewport: { x: number; y: number; zoom: number } } | null>(
+    null,
+  );
 
   const elementList = useMemo(() => Object.values(elements), [elements]);
   const connectionList = useMemo(() => Object.values(connections), [connections]);
@@ -181,14 +192,98 @@ export function Canvas({ board }: { board: Board }) {
     return () => node.removeEventListener("wheel", onWheel);
   }, [containerRef, pan, zoomTo, viewport.zoom, toContainerPoint]);
 
+  // ---- Fase 6: multi-touch (pinch-zoom + two-finger pan) ----
+  // Capture-phase listeners (not React's normal bubble-phase props) so
+  // every touch is tracked regardless of whether it lands on empty canvas
+  // or on a node — nodes call stopPropagation() on the bubble-phase
+  // pointerdown they use for selection/drag, which would otherwise hide
+  // "second finger landed on a node" from this tracker. Capture fires
+  // before that stopPropagation takes effect.
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+
+    function onPointerDownCapture(e: PointerEvent) {
+      if (e.pointerType !== "touch") return;
+      activeTouches.current.set(e.pointerId, toContainerPoint(e.clientX, e.clientY));
+      if (activeTouches.current.size === 2) {
+        const [a, b] = Array.from(activeTouches.current.values());
+        if (!a || !b) return;
+        pinchStart.current = {
+          distance: Math.hypot(a.x - b.x, a.y - b.y),
+          midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+          viewport: { ...useCanvasStore.getState().viewport },
+        };
+        setDragMode("pinch");
+      }
+    }
+
+    function onPointerMoveCapture(e: PointerEvent) {
+      if (e.pointerType !== "touch" || !activeTouches.current.has(e.pointerId)) return;
+      activeTouches.current.set(e.pointerId, toContainerPoint(e.clientX, e.clientY));
+      if (activeTouches.current.size !== 2 || !pinchStart.current) return;
+
+      const [a, b] = Array.from(activeTouches.current.values());
+      if (!a || !b) return;
+      const distance = Math.hypot(a.x - b.x, a.y - b.y);
+      const midpoint = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const scale = distance / Math.max(pinchStart.current.distance, 1);
+      const nextZoom = clampZoom(pinchStart.current.viewport.zoom * scale);
+
+      // Zoom anchored at the gesture's starting midpoint, then shifted by
+      // however far the midpoint itself has since traveled — this is what
+      // makes "pinch while also dragging two fingers" pan AND zoom at once
+      // instead of only zooming around a fixed spot.
+      const zoomed = zoomAtPoint(pinchStart.current.viewport, pinchStart.current.midpoint, nextZoom);
+      const dxMid = midpoint.x - pinchStart.current.midpoint.x;
+      const dyMid = midpoint.y - pinchStart.current.midpoint.y;
+      useCanvasStore.setState(() => ({
+        viewport: {
+          zoom: zoomed.zoom,
+          x: zoomed.x - dxMid / zoomed.zoom,
+          y: zoomed.y - dyMid / zoomed.zoom,
+        },
+      }));
+    }
+
+    function onPointerEndCapture(e: PointerEvent) {
+      if (e.pointerType !== "touch") return;
+      activeTouches.current.delete(e.pointerId);
+      if (activeTouches.current.size < 2) {
+        pinchStart.current = null;
+        setDragMode("none");
+      }
+    }
+
+    node.addEventListener("pointerdown", onPointerDownCapture, { capture: true });
+    node.addEventListener("pointermove", onPointerMoveCapture, { capture: true });
+    node.addEventListener("pointerup", onPointerEndCapture, { capture: true });
+    node.addEventListener("pointercancel", onPointerEndCapture, { capture: true });
+    return () => {
+      node.removeEventListener("pointerdown", onPointerDownCapture, { capture: true });
+      node.removeEventListener("pointermove", onPointerMoveCapture, { capture: true });
+      node.removeEventListener("pointerup", onPointerEndCapture, { capture: true });
+      node.removeEventListener("pointercancel", onPointerEndCapture, { capture: true });
+    };
+  }, [containerRef, toContainerPoint]);
+
   // ---- Pointer down on empty canvas ----
   const onCanvasPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (e.button === 2) return;
+      // A pinch already owns this gesture (2nd finger just landed) —
+      // don't also start a pan/marquee/create from this same touchdown.
+      if (activeTouches.current.size >= 2) return;
       const screenPoint = toContainerPoint(e.clientX, e.clientY);
       lastScreenPoint.current = screenPoint;
 
-      const shouldPan = activeTool === "pan" || spacePanning || e.button === 1;
+      // On touch, a single finger dragging empty canvas pans — marquee
+      // selection by single-finger drag isn't a discoverable or reliable
+      // touch gesture the way it is with a mouse. Explicit pan tool and
+      // element-creation taps are unaffected.
+      const isTouch = e.pointerType === "touch";
+      const shouldPan =
+        activeTool === "pan" || spacePanning || e.button === 1 || (isTouch && activeTool === "select");
       if (shouldPan) {
         setDragMode("pan");
         (e.target as Element).setPointerCapture(e.pointerId);
@@ -230,9 +325,21 @@ export function Canvas({ board }: { board: Board }) {
     [selectedElementIds, toggleSel, selectMany, groupMembers],
   );
 
+  // Tab-focusing a node's header marks it selected too — mirrors how a
+  // click does, so keyboard-only users can reach a node with Tab and
+  // immediately have Delete/duplicate/nudge/etc. act on it, without a
+  // separate "now press Enter to actually select it" step.
+  const onNodeFocus = useCallback(
+    (id: string) => {
+      selectMany(groupMembers(id), false);
+    },
+    [groupMembers, selectMany],
+  );
+
   const onNodeDragStart = useCallback(
     (id: string, e: React.PointerEvent) => {
       if (activeTool !== "select") return;
+      if (activeTouches.current.size >= 2) return; // pinch owns this gesture
       const groupIds = groupMembers(id);
       const ids = selectedElementIds.has(id)
         ? Array.from(selectedElementIds)
@@ -250,6 +357,7 @@ export function Canvas({ board }: { board: Board }) {
 
   const onNodeResizeStart = useCallback(
     (id: string, e: React.PointerEvent) => {
+      if (activeTouches.current.size >= 2) return;
       const el = elements[id];
       if (!el) return;
       resizingId.current = id;
@@ -311,6 +419,10 @@ export function Canvas({ board }: { board: Board }) {
         setPendingConnection((p) => (p ? { ...p, toWorld: screenToWorld(screenPoint, viewport) } : p));
         return;
       }
+
+      // "pinch" is handled entirely by the capture-phase listeners above
+      // (they read directly from the native event's coordinates); nothing
+      // to do here.
     },
     [dragMode, pan, moveElements, resizeElement, toContainerPoint, viewport],
   );
@@ -447,6 +559,14 @@ export function Canvas({ board }: { board: Board }) {
       const newIds = duplicateElements(Array.from(elementIds));
       if (newIds.length > 0) selectMany(newIds, false);
     },
+    onNudge: (dx, dy) => {
+      const { elementIds } = useSelectionStore.getState();
+      if (elementIds.size === 0) return;
+      const ids = Array.from(elementIds);
+      beginMove(ids);
+      moveElements(ids, dx, dy);
+      commitMove();
+    },
   });
 
   return (
@@ -497,6 +617,7 @@ export function Canvas({ board }: { board: Board }) {
             grouped={Boolean(el.groupId)}
             zoom={viewport.zoom}
             onSelect={(e) => onNodeSelect(el.id, e)}
+            onFocusSelect={() => onNodeFocus(el.id)}
             onPointerDownDrag={(e) => onNodeDragStart(el.id, e)}
             onResizeStart={(e) => onNodeResizeStart(el.id, e)}
             onConnectStart={(e) => onNodeConnectStart(el.id, e)}

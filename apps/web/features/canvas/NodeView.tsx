@@ -32,6 +32,7 @@ interface NodeViewProps {
   onResizeStart: (e: React.PointerEvent) => void;
   onConnectStart: (e: React.PointerEvent) => void;
   onSelect: (e: React.PointerEvent) => void;
+  onFocusSelect: () => void;
   onContentChange: (patch: Record<string, unknown>) => void;
 }
 
@@ -69,6 +70,44 @@ const TYPE_ACCENT: Record<ElementType, string> = {
   location: "border-l-text-faint",
 };
 
+const TYPE_LABEL: Record<ElementType, string> = {
+  note: "Nota",
+  text: "Texto",
+  task: "Tarefa",
+  checklist: "Checklist",
+  list: "Lista",
+  link: "Link",
+  bookmark: "Bookmark",
+  code: "Código",
+  image: "Imagem",
+  video: "Vídeo",
+  audio: "Áudio",
+  pdf: "PDF",
+  file: "Arquivo",
+  location: "Local",
+};
+
+/** Short human-readable summary for screen readers — the visible title/text when the type has one, otherwise just the type name. */
+function describeElement(element: AnyElement): string {
+  const label = TYPE_LABEL[element.type];
+  switch (element.type) {
+    case "note":
+      return `${label}: ${element.data.title || "sem título"}`;
+    case "task":
+      return `${label}: ${element.data.title || "sem título"}`;
+    case "checklist":
+      return `${label}: ${element.data.title || "sem título"}`;
+    case "list":
+      return `${label}: ${element.data.title || "sem título"}`;
+    case "link":
+      return `${label}: ${element.data.title || element.data.url || "sem título"}`;
+    case "bookmark":
+      return `${label}: ${element.data.title || "sem título"}`;
+    default:
+      return label;
+  }
+}
+
 export const NodeView = React.memo(function NodeView({
   element,
   selected,
@@ -78,6 +117,7 @@ export const NodeView = React.memo(function NodeView({
   onResizeStart,
   onConnectStart,
   onSelect,
+  onFocusSelect,
   onContentChange,
 }: NodeViewProps) {
   const Icon = TYPE_ICON[element.type];
@@ -103,13 +143,40 @@ export const NodeView = React.memo(function NodeView({
         zIndex: element.zIndex,
       }}
       onPointerDown={(e) => {
+        // Without this, the event bubbles to Canvas.tsx's container-level
+        // onPointerDown, which — since it has no "did this originate on a
+        // node" check — treats it as a click on empty canvas and starts
+        // marquee-selection, clobbering the `dragMode` this same event just
+        // set to "move" a few lines below via onPointerDownDrag. React
+        // batches both setDragMode calls from the same synchronous event,
+        // so the container's runs last and wins: the node's own drag never
+        // actually happens, a marquee box draws instead. Never caught by
+        // build/type-check since it's a runtime interaction bug, not a
+        // type error.
+        e.stopPropagation();
         onSelect(e);
         onPointerDownDrag(e);
       }}
     >
       <div
-        className="flex h-6 items-center justify-between rounded-t-lg border-b border-border/60 px-2 text-text-faint"
+        role="button"
+        tabIndex={0}
+        aria-label={describeElement(element)}
+        aria-pressed={selected}
+        className="flex h-6 items-center justify-between rounded-t-lg border-b border-border/60 px-2 text-text-faint outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-inset"
         style={{ cursor: "grab" }}
+        onFocus={onFocusSelect}
+        onKeyDown={(e) => {
+          // Enter/Space select — the same action a click performs. Delete
+          // and arrow-key nudge are handled globally once selected (see
+          // useKeyboardShortcuts in Canvas.tsx), not here, so they keep
+          // working the same way regardless of whether focus is on this
+          // header or anywhere else on the page.
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onFocusSelect();
+          }
+        }}
       >
         <span className="flex items-center gap-1">
           <Icon className="h-3 w-3 opacity-60" />

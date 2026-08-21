@@ -8,6 +8,7 @@ import {
   Cloud,
   CloudOff,
   Loader2,
+  Menu,
   Moon,
   Sun,
   Trash2,
@@ -40,6 +41,7 @@ export function BoardNavbar({ board }: { board: Board }) {
   const saveStatus = useUiStore((s) => s.saveStatus);
   const resolvedTheme = useUiStore((s) => s.resolvedTheme);
   const setTheme = useUiStore((s) => s.setTheme);
+  const toggleMobileSidebar = useUiStore((s) => s.toggleMobileSidebar);
   const status = statusConfig[saveStatus];
 
   // Registers ownership in Supabase the first time a board's navbar mounts
@@ -60,10 +62,13 @@ export function BoardNavbar({ board }: { board: Board }) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
       <div className="flex min-w-0 items-center gap-1.5 text-sm text-text-muted">
-        <Link href="/dashboard" className="shrink-0 hover:text-text">
+        <IconButton label="Abrir menu" size="sm" className="mr-0.5 md:hidden" onClick={toggleMobileSidebar}>
+          <Menu />
+        </IconButton>
+        <Link href="/dashboard" className="hidden shrink-0 hover:text-text sm:inline">
           Dashboard
         </Link>
-        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-text-faint" />
+        <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-text-faint sm:block" />
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}

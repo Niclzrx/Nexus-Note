@@ -11,6 +11,7 @@ export interface ShortcutHandlers {
   onPanToolHold?: (held: boolean) => void;
   onGroup?: () => void;
   onUngroup?: () => void;
+  onNudge?: (dx: number, dy: number) => void;
 }
 
 function isTypingTarget(el: EventTarget | null): boolean {
@@ -87,14 +88,22 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers) {
       // across keyboards, including compact 60% layouts where Delete is
       // often only reachable via Fn+Backspace and some browsers/OSes report
       // that combination inconsistently in `e.key`).
-      if (
-        e.key === "Delete" ||
-        e.key === "Backspace" ||
-        e.code === "Delete" ||
-        e.code === "Backspace"
-      ) {
+      if (e.key === "Delete" || e.key === "Backspace" || e.code === "Delete" || e.code === "Backspace") {
         e.preventDefault();
         handlers.onDelete?.();
+        return;
+      }
+      if (
+        handlers.onNudge &&
+        (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight")
+      ) {
+        // §32: keyboard-only repositioning of selected elements. Shift for
+        // a larger step, matching the convention most design tools use.
+        e.preventDefault();
+        const step = e.shiftKey ? 32 : 4;
+        const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+        const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+        handlers.onNudge(dx, dy);
         return;
       }
       if (e.code === "Space") {

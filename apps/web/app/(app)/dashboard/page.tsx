@@ -2,16 +2,18 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Star, Clock, LayoutGrid } from "lucide-react";
-import { Button } from "@nexus/design-system";
+import { Plus, Star, Clock, LayoutGrid, Menu } from "lucide-react";
+import { Button, IconButton } from "@nexus/design-system";
 import type { Board } from "@nexus/types";
 import { useWorkspaceStore } from "../../../stores/workspace-store";
+import { useUiStore } from "../../../stores/ui-store";
 
 export default function DashboardPage() {
   const router = useRouter();
   const workspace = useWorkspaceStore((s) => s.workspace);
   const boards = useWorkspaceStore((s) => s.boards);
   const createBoard = useWorkspaceStore((s) => s.createBoard);
+  const toggleMobileSidebar = useUiStore((s) => s.toggleMobileSidebar);
 
   const active = useMemo(() => boards.filter((b) => !b.isTrashed), [boards]);
   const recent = useMemo(
@@ -27,20 +29,27 @@ export default function DashboardPage() {
 
   return (
     <div className="nx-scroll h-full overflow-y-auto">
-      <header className="flex items-center justify-between border-b border-border bg-surface px-8 py-5">
-        <div>
-          <h1 className="font-display text-xl font-semibold text-text">{workspace?.name}</h1>
-          <p className="text-sm text-text-muted">
-            {active.length} {active.length === 1 ? "board" : "boards"} · {" "}
-            {active.reduce((sum, b) => sum + b.elementCount, 0)} elementos
-          </p>
+      <header className="flex items-center justify-between gap-3 border-b border-border bg-surface px-4 py-4 sm:px-8 sm:py-5">
+        <div className="flex min-w-0 items-center gap-2">
+          <IconButton label="Abrir menu" className="shrink-0 md:hidden" onClick={toggleMobileSidebar}>
+            <Menu />
+          </IconButton>
+          <div className="min-w-0">
+            <h1 className="truncate font-display text-lg font-semibold text-text sm:text-xl">
+              {workspace?.name}
+            </h1>
+            <p className="truncate text-xs text-text-muted sm:text-sm">
+              {active.length} {active.length === 1 ? "board" : "boards"} · {" "}
+              {active.reduce((sum, b) => sum + b.elementCount, 0)} elementos
+            </p>
+          </div>
         </div>
-        <Button onClick={handleCreate}>
-          <Plus className="h-4 w-4" /> Novo board
+        <Button onClick={handleCreate} className="shrink-0">
+          <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Novo board</span>
         </Button>
       </header>
 
-      <div className="mx-auto max-w-5xl px-8 py-8">
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8 sm:py-8">
         {favorites.length > 0 ? (
           <BoardGrid title="Favoritos" icon={Star} boards={favorites} />
         ) : null}

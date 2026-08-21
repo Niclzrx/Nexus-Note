@@ -245,3 +245,91 @@ minimapa.
 - **Botão de mostrar/ocultar senha** — adicionado em login e cadastro
   (`features/auth/PasswordInput.tsx`, componente compartilhado pelos dois
   formulários).
+
+## Fase 6 — UX ✅
+
+### Bug crítico corrigido no caminho (nunca detectado antes — dependia de teste em navegador real)
+
+**Arrastar um nó podia silenciosamente virar uma seleção por área.** O clique
+no corpo principal de um nó nunca chamava `stopPropagation()`, então o
+evento borbulhava até o `onPointerDown` do canvas, que não verifica se a
+origem foi um nó — ele tratava qualquer clique que chegasse até ele como
+"clique em área vazia" e iniciava seleção por área, sobrescrevendo o
+`dragMode` que o próprio nó tinha acabado de definir como `"move"` (o
+React agrupa as duas chamadas de `setDragMode` do mesmo evento síncrono, e a
+última vence). Nunca foi pego por build/type-check porque é um bug de lógica
+de interação em tempo de execução, não um erro de tipo — só apareceria
+testando de verdade num navegador, o que eu não tinha feito até parar pra
+implementar touch e revisar esse fluxo com cuidado. Corrigido adicionando o
+`stopPropagation()` que faltava.
+
+### Toque multi-touch (§33)
+
+- Pinch-to-zoom e pan com dois dedos, rastreados via listeners em *capture
+  phase* (não os `onPointerDown` normais do React) — necessário porque nós
+  chamam `stopPropagation()` no próprio toque, o que esconderia um segundo
+  dedo pousando em cima de um nó se o rastreamento dependesse de bubble
+  phase.
+- Em toque, arrastar um dedo em área vazia faz **pan** em vez de iniciar
+  seleção por área — seleção por área via um único dedo não é um gesto
+  confiável nem descobrível em touch.
+- Handlers de drag/resize/pan de ponteiro único verificam se uma pinça já
+  está em andamento antes de iniciar, evitando gestos concorrentes.
+
+### Acessibilidade no canvas (§32)
+
+- Nós agora são alcançáveis por **Tab** (cabeçalho com `tabIndex`,
+  `role="button"`, `aria-label` descrevendo o conteúdo). Focar um nó já o
+  seleciona, igual um clique — Delete, duplicar e mover por seta já
+  funcionam a partir daí, sem passo extra.
+- **Setas do teclado movem os elementos selecionados** (4px por vez, 32px
+  com Shift) — primeira forma de reposicionar sem mouse.
+- Conexões (paths SVG) também são alcançáveis por Tab, com `aria-label`
+  descrevendo origem/destino, e Enter/Espaço seleciona.
+- `Escape` já tirava o foco de campos de texto (corrigido numa rodada
+  anterior); agora também funciona a partir do cabeçalho de um nó focado.
+
+### Empty states
+
+- Sidebar diferenciava mal "nenhum board" de "busca sem resultado" — as duas
+  mostravam a mesma mensagem genérica. Agora são mensagens diferentes, e o
+  estado de "nenhum board" tem um CTA ("Criar o primeiro") em vez de só
+  texto.
+
+### O que ainda falta (documentado, não escondido)
+
+- Roving tabindex "de verdade" (um único stop de Tab por grupo, movendo com
+  setas entre nós) não foi implementado — cada nó tem seu próprio
+  `tabIndex=0`, o que funciona bem dado que a virtualização (Fase 5) já
+  limita quantos nós existem no DOM a qualquer momento, mas não é o padrão
+  WAI-ARIA "canônico" para widgets compostos grandes.
+- Long-press em touch (menu de contexto) não foi implementado.
+- Testes reais em dispositivo físico — tudo acima foi implementado e
+  revisado por leitura de código + build/type-check, mas eu não tenho um
+  navegador ou touchscreen real neste ambiente para confirmar a sensação do
+  gesto na prática. Vale testar num celular/tablet de verdade.
+
+## Responsividade real (16 de agosto de 2026)
+
+A Fase 6 anterior cobriu gestos de *toque* (pinch/pan) mas não o *layout* —
+sidebar e property panel continuavam do mesmo tamanho fixo em qualquer tela,
+o que é exatamente o "diminuir a interface desktop" que o §33 do documento
+original pede pra evitar. Corrigido agora:
+
+- **Sidebar vira um drawer no mobile** (`< 768px`): fica fechada por padrão,
+  abre como overlay com fundo escurecido via botão de menu (☰) que agora
+  existe na navbar do board, no Dashboard e em `/account` — nenhuma dessas
+  páginas tinha um jeito de abrir a sidebar no mobile antes. Fecha sozinha
+  ao navegar para um board.
+- **Property Panel vira uma folha inferior no mobile** em vez de uma caixa
+  flutuante de 256px no canto — e só aparece quando há algo selecionado
+  (no desktop continua sempre visível, mostrando config do board).
+- Headers do Dashboard e `/account` ganharam padding/tipografia responsivos
+  em vez de espaçamento fixo de desktop.
+- `hooks/use-media-query.ts` — novo hook (`useIsMobile`) para as poucas
+  decisões que precisam ser tomadas em JS (não só CSS), como se o Property
+  Panel deve renderizar ou não.
+
+Ainda não testado num dispositivo real — assim como os gestos de toque da
+rodada anterior, isso foi implementado e revisado por leitura de código +
+build/type-check, não em tela física.

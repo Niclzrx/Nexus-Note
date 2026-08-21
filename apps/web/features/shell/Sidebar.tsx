@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import { IconButton, cx } from "@nexus/design-system";
 import {
   LayoutDashboard,
@@ -16,21 +17,110 @@ import {
   Trash2,
   User,
   LogOut,
+  X,
 } from "lucide-react";
 import { useWorkspaceStore } from "../../stores/workspace-store";
 import { useUiStore } from "../../stores/ui-store";
 import { useAuth } from "../../hooks/use-auth";
+import { useIsMobile } from "../../hooks/use-media-query";
 import { deleteDocumentOwnership } from "../../lib/supabase/documents";
 
 export function Sidebar() {
+  const isMobile = useIsMobile();
+  const mobileOpen = useUiStore((s) => s.mobileSidebarOpen);
+  const setMobileOpen = useUiStore((s) => s.setMobileSidebarOpen);
+  const pathname = usePathname();
+
+  // Closing on navigation is what makes a drawer feel like a drawer instead
+  // of a page that happens to cover the screen — without this, picking a
+  // board from the mobile sidebar would leave the drawer sitting open over
+  // the board you just navigated to.
+  useEffect(() => {
+    if (isMobile) setMobileOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  if (isMobile) {
+    return (
+      <AnimatePresence>
+        {mobileOpen ? (
+          <>
+            <motion.div
+              className="fixed inset-0 z-sidebar bg-black/50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileOpen(false)}
+            />
+            <motion.div
+              className="fixed inset-y-0 left-0 z-sidebar w-72 max-w-[85vw]"
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <SidebarContent onNavigate={() => setMobileOpen(false)} showCloseButton />
+            </motion.div>
+          </>
+        ) : null}
+      </AnimatePresence>
+    );
+  }
+
+  return <DesktopSidebar />;
+}
+
+function DesktopSidebar() {
+  const collapsed = useUiStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+
+  if (collapsed) {
+    return (
+      <div className="flex h-full w-14 shrink-0 flex-col items-center gap-2 border-r border-border bg-surface py-3">
+        <IconButton label="Expandir sidebar" onClick={toggleSidebar}>
+          <PanelLeftOpen />
+        </IconButton>
+        <div className="mt-2 h-8 w-8 rounded-md bg-signal/15" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-64 shrink-0 border-r border-border">
+      <SidebarContent
+        headerAction={
+          <IconButton label="Recolher sidebar" size="sm" onClick={toggleSidebar}>
+            <PanelLeftClose />
+          </IconButton>
+        }
+      />
+    </div>
+  );
+}
+
+/**
+ * Shared sidebar body — one implementation, rendered either as the
+ * always-visible desktop column (via DesktopSidebar) or inside the mobile
+ * overlay drawer (via Sidebar). Duplicating this between two components
+ * would be exactly the kind of drift that eventually makes the mobile
+ * sidebar quietly fall behind the desktop one as features get added.
+ */
+function SidebarContent({
+  onNavigate,
+  headerAction,
+  showCloseButton,
+}: {
+  onNavigate?: () => void;
+  headerAction?: React.ReactNode;
+  showCloseButton?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const boards = useWorkspaceStore((s) => s.boards);
   const createBoard = useWorkspaceStore((s) => s.createBoard);
   const toggleFavorite = useWorkspaceStore((s) => s.toggleFavorite);
   const trashBoard = useWorkspaceStore((s) => s.trashBoard);
-  const collapsed = useUiStore((s) => s.sidebarCollapsed);
-  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const setMobileOpen = useUiStore((s) => s.setMobileSidebarOpen);
   const { profile, signOut } = useAuth();
   const [query, setQuery] = useState("");
 
@@ -46,6 +136,7 @@ export function Sidebar() {
 
   async function handleCreate() {
     const board = await createBoard("Board sem título");
+    onNavigate?.();
     router.push(`/board/${board.id}`);
   }
 
@@ -56,19 +147,8 @@ export function Sidebar() {
     if (pathname === `/board/${id}`) router.push("/dashboard");
   }
 
-  if (collapsed) {
-    return (
-      <div className="flex h-full w-14 flex-col items-center gap-2 border-r border-border bg-surface py-3">
-        <IconButton label="Expandir sidebar" onClick={toggleSidebar}>
-          <PanelLeftOpen />
-        </IconButton>
-        <div className="mt-2 h-8 w-8 rounded-md bg-signal/15" />
-      </div>
-    );
-  }
-
   return (
-    <div className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-surface">
+    <div className="flex h-full flex-col bg-surface">
       <div className="flex items-center justify-between px-3.5 py-3.5">
         <div className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-signal/15 text-signal">
@@ -78,14 +158,19 @@ export function Sidebar() {
             Nexus Note
           </span>
         </div>
-        <IconButton label="Recolher sidebar" size="sm" onClick={toggleSidebar}>
-          <PanelLeftClose />
-        </IconButton>
+        {showCloseButton ? (
+          <IconButton label="Fechar menu" size="sm" onClick={() => setMobileOpen(false)}>
+            <X />
+          </IconButton>
+        ) : (
+          headerAction
+        )}
       </div>
 
       <nav className="px-2.5">
         <Link
           href="/dashboard"
+          onClick={onNavigate}
           className={cx(
             "flex items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors",
             pathname === "/dashboard"
@@ -119,6 +204,7 @@ export function Sidebar() {
                 name={b.name}
                 active={pathname === `/board/${b.id}`}
                 favorite
+                onNavigate={onNavigate}
                 onToggleFavorite={() => toggleFavorite(b.id)}
                 onDelete={() => handleDelete(b.id)}
               />
@@ -136,7 +222,25 @@ export function Sidebar() {
           }
         >
           {activeBoards.length === 0 ? (
-            <p className="px-2.5 py-1.5 text-xs text-text-faint">Nenhum board ainda.</p>
+            query ? (
+              <p className="px-2.5 py-3 text-center text-xs text-text-faint">
+                Nenhum board encontrado para &ldquo;{query}&rdquo;.
+              </p>
+            ) : (
+              <div className="flex flex-col items-center gap-2 px-2.5 py-6 text-center">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-signal/10 text-signal">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <p className="text-xs text-text-muted">Nenhum board ainda</p>
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  className="text-[11px] font-medium text-signal hover:underline"
+                >
+                  Criar o primeiro
+                </button>
+              </div>
+            )
           ) : (
             activeBoards.map((b) => (
               <BoardRow
@@ -145,6 +249,7 @@ export function Sidebar() {
                 name={b.name}
                 active={pathname === `/board/${b.id}`}
                 favorite={b.isFavorite}
+                onNavigate={onNavigate}
                 onToggleFavorite={() => toggleFavorite(b.id)}
                 onDelete={() => handleDelete(b.id)}
               />
@@ -156,6 +261,7 @@ export function Sidebar() {
       <div className="border-t border-border px-3.5 py-2.5">
         <Link
           href="/account"
+          onClick={onNavigate}
           className={cx(
             "flex items-center justify-between rounded-md px-1.5 py-1.5 text-xs transition-colors hover:bg-surface-elevated",
             pathname === "/account" ? "text-signal" : "text-text-muted",
@@ -211,6 +317,7 @@ function BoardRow({
   name,
   active,
   favorite,
+  onNavigate,
   onToggleFavorite,
   onDelete,
 }: {
@@ -218,12 +325,14 @@ function BoardRow({
   name: string;
   active: boolean;
   favorite: boolean;
+  onNavigate?: () => void;
   onToggleFavorite: () => void;
   onDelete: () => void;
 }) {
   return (
     <Link
       href={`/board/${id}`}
+      onClick={onNavigate}
       className={cx(
         "group flex items-center justify-between rounded-md px-2.5 py-1.5 text-sm transition-colors",
         active ? "bg-signal/15 text-signal" : "text-text-muted hover:bg-surface-elevated hover:text-text",

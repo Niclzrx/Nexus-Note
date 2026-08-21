@@ -30,6 +30,19 @@ function threadPath(a: { x: number; y: number }, b: { x: number; y: number }) {
   return `M ${a.x} ${a.y} C ${midX} ${a.y}, ${midX} ${b.y}, ${b.x} ${b.y}`;
 }
 
+/** Short label for a connection endpoint, for the aria-label screen readers announce. */
+function describeConnectionEndpoint(el: AnyElement): string {
+  switch (el.type) {
+    case "note":
+    case "task":
+    case "checklist":
+    case "list":
+      return el.data.title || el.type;
+    default:
+      return el.type;
+  }
+}
+
 export function ConnectionsLayer({
   connections,
   elements,
@@ -52,6 +65,8 @@ export function ConnectionsLayer({
         const a = edgePoint(source, center(target));
         const b = edgePoint(target, center(source));
         const isSelected = selectedIds.has(c.id);
+        const sourceLabel = describeConnectionEndpoint(source);
+        const targetLabel = describeConnectionEndpoint(target);
         return (
           <path
             key={c.id}
@@ -61,10 +76,21 @@ export function ConnectionsLayer({
             strokeWidth={isSelected ? 2.5 : 1.75}
             vectorEffect="non-scaling-stroke"
             markerEnd={c.direction === "one-way" ? "url(#nx-arrow)" : undefined}
-            className="pointer-events-auto cursor-pointer transition-colors duration-fast"
+            className="pointer-events-auto cursor-pointer transition-colors duration-fast focus:outline-none"
+            tabIndex={0}
+            role="button"
+            aria-label={`Conexão de ${sourceLabel} para ${targetLabel}${c.label ? `: ${c.label}` : ""}`}
+            aria-pressed={isSelected}
             onPointerDown={(e) => {
               e.stopPropagation();
               onSelectConnection(c.id, e.shiftKey);
+            }}
+            onFocus={() => onSelectConnection(c.id, false)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelectConnection(c.id, false);
+              }
             }}
           />
         );
