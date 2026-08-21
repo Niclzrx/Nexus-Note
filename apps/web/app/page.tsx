@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Sparkles } from "lucide-react";
 import { Panel } from "@nexus/design-system";
-import { LoginForm } from "../../features/auth/LoginForm";
+import { LoginForm } from "../features/auth/LoginForm";
 
 export const metadata = { title: "Entrar — Nexus Note" };
 
