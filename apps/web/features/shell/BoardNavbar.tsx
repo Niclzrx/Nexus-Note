@@ -84,7 +84,7 @@ export function BoardNavbar({ board }: { board: Board }) {
 
       <div className="flex items-center gap-1">
         <Button variant="secondary" size="sm" onClick={() => setShareOpen(true)}>
-          <Users2 className="h-3.5 w-3.5" /> Compartilhar
+          <Users2 className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Compartilhar</span>
         </Button>
 
         <div className="mx-1.5 h-5 w-px bg-border" />

@@ -673,7 +673,9 @@ export function Canvas({ board }: { board: Board }) {
         totalCount={elementList.length}
       />
 
-      <Minimap elements={elementList} viewport={viewport} viewportSize={containerSize} onNavigate={navigateTo} />
+      <div className="hidden md:block">
+        <Minimap elements={elementList} viewport={viewport} viewportSize={containerSize} onNavigate={navigateTo} />
+      </div>
     </div>
   );
 }
