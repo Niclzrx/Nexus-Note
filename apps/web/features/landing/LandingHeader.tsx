@@ -30,7 +30,7 @@ export function LandingHeader() {
           Nexus Note
         </span>
       </Link>
-      <nav className="flex items-center gap-3">
+      <nav className="flex items-center gap-2 sm:gap-3">
         <button
           onClick={toggleTheme}
           className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-elevated hover:text-text"
@@ -45,7 +45,8 @@ export function LandingHeader() {
         </Link>
         <Link href="/signup">
           <Button variant="primary" size="sm">
-            Criar conta
+            <span className="hidden sm:inline">Criar conta</span>
+            <span className="sm:hidden">Criar</span>
           </Button>
         </Link>
       </nav>
