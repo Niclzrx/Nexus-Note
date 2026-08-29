@@ -1,13 +1,133 @@
 -- ============================================================================
--- Nexus Note — Fase 5: Real-time Sharing
+-- Nexus Note — Migration 0002: Real-time Sharing + RLS Fix
 -- ============================================================================
--- Adds board_content table for syncing board content (elements, connections,
--- groups) via Supabase Realtime, plus presence tracking for cursors/avatars.
+-- Combines board_content/board_presence tables with SECURITY DEFINER helpers
+-- to avoid infinite RLS recursion. Run this single migration.
 -- ============================================================================
 
--- board_content: stores the actual board data for real-time sync.
--- Each row is one element, connection, or group. The composite PK
--- (document_id, content_type, content_id) ensures upserts are idempotent.
+-- ============================================================================
+-- SECURITY DEFINER helpers (break RLS recursion)
+-- ============================================================================
+
+create or replace function public.is_document_owner(p_document_id text)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.documents
+    where id = p_document_id and owner_id = (select auth.uid())
+  );
+$$;
+
+revoke all on function public.is_document_owner(text) from public;
+grant execute on function public.is_document_owner(text) to authenticated;
+
+create or replace function public.is_document_shared_with_user(p_document_id text)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.document_shares
+    where document_id = p_document_id and user_id = (select auth.uid())
+  );
+$$;
+
+revoke all on function public.is_document_shared_with_user(text) from public;
+grant execute on function public.is_document_shared_with_user(text) to authenticated;
+
+create or replace function public.is_document_editor(p_document_id text)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.document_shares
+    where document_id = p_document_id and user_id = (select auth.uid()) and permission = 'editor'
+  );
+$$;
+
+revoke all on function public.is_document_editor(text) from public;
+grant execute on function public.is_document_editor(text) to authenticated;
+
+-- ============================================================================
+-- Fix DOCUMENTS policies (use helpers to break recursion)
+-- ============================================================================
+
+drop policy if exists "documents_select_owner_or_shared" on public.documents;
+create policy "documents_select_owner_or_shared"
+  on public.documents for select
+  using (
+    owner_id = (select auth.uid())
+    or public.is_document_shared_with_user(id)
+  );
+
+drop policy if exists "documents_insert_own" on public.documents;
+create policy "documents_insert_own"
+  on public.documents for insert
+  with check (owner_id = (select auth.uid()));
+
+drop policy if exists "documents_update_owner_or_editor" on public.documents;
+create policy "documents_update_owner_or_editor"
+  on public.documents for update
+  using (
+    owner_id = (select auth.uid())
+    or public.is_document_editor(id)
+  );
+
+drop policy if exists "documents_delete_owner" on public.documents;
+create policy "documents_delete_owner"
+  on public.documents for delete
+  using (owner_id = (select auth.uid()));
+
+-- ============================================================================
+-- Fix DOCUMENT_SHARES policies
+-- ============================================================================
+
+drop policy if exists "shares_select_owner_or_self" on public.document_shares;
+create policy "shares_select_owner_or_self"
+  on public.document_shares for select
+  using (
+    user_id = (select auth.uid())
+    or public.is_document_owner(document_id)
+  );
+
+drop policy if exists "shares_insert_owner_only" on public.document_shares;
+create policy "shares_insert_owner_only"
+  on public.document_shares for insert
+  with check (
+    public.is_document_owner(document_id)
+    and user_id <> (select auth.uid())
+  );
+
+drop policy if exists "shares_update_owner_only" on public.document_shares;
+create policy "shares_update_owner_only"
+  on public.document_shares for update
+  using (public.is_document_owner(document_id));
+
+drop policy if exists "shares_delete_owner_only" on public.document_shares;
+create policy "shares_delete_owner_only"
+  on public.document_shares for delete
+  using (public.is_document_owner(document_id));
+
+-- ============================================================================
+-- Fix SHARE_LINKS policies
+-- ============================================================================
+
+drop policy if exists "share_links_owner_manage" on public.share_links;
+create policy "share_links_owner_manage"
+  on public.share_links for all
+  using (public.is_document_owner(document_id))
+  with check (public.is_document_owner(document_id));
+
+-- ============================================================================
+-- BOARD_CONTENT: stores board data for real-time sync
+-- ============================================================================
+
 create table if not exists public.board_content (
   document_id text not null references public.documents(id) on delete cascade,
   content_type text not null check (content_type in ('element', 'connection', 'group')),
@@ -20,8 +140,8 @@ create table if not exists public.board_content (
 
 create index if not exists board_content_document_id_idx on public.board_content (document_id);
 
--- board_presence: tracks who is currently viewing/editing a board.
--- Updated periodically via client heartbeats; cleaned up on disconnect.
+-- BOARD_PRESENCE: tracks who is currently viewing/editing a board
+
 create table if not exists public.board_presence (
   document_id text not null references public.documents(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -34,140 +154,69 @@ create table if not exists public.board_presence (
 
 create index if not exists board_presence_document_id_idx on public.board_presence (document_id);
 
--- Enable Realtime for both tables
+-- Enable Realtime
+
 alter publication supabase_realtime add table public.board_content;
 alter publication supabase_realtime add table public.board_presence;
 
+-- ============================================================================
 -- RLS for board_content
+-- ============================================================================
+
 alter table public.board_content enable row level security;
 
--- SELECT: owner or shared user (viewer/editor)
 drop policy if exists "board_content_select" on public.board_content;
 create policy "board_content_select"
   on public.board_content for select
   using (
-    exists (
-      select 1 from public.documents d
-      where d.id = document_id
-        and (
-          d.owner_id = (select auth.uid())
-          or exists (
-            select 1 from public.document_shares s
-            where s.document_id = d.id and s.user_id = (select auth.uid())
-          )
-        )
-    )
+    public.is_document_owner(document_id)
+    or public.is_document_shared_with_user(document_id)
   );
 
--- INSERT: owner or editor
 drop policy if exists "board_content_insert" on public.board_content;
 create policy "board_content_insert"
   on public.board_content for insert
   with check (
-    exists (
-      select 1 from public.documents d
-      where d.id = document_id
-        and (
-          d.owner_id = (select auth.uid())
-          or exists (
-            select 1 from public.document_shares s
-            where s.document_id = d.id and s.user_id = (select auth.uid()) and s.permission = 'editor'
-          )
-        )
-    )
+    public.is_document_owner(document_id)
+    or public.is_document_editor(document_id)
   );
 
--- UPDATE: owner or editor
 drop policy if exists "board_content_update" on public.board_content;
 create policy "board_content_update"
   on public.board_content for update
   using (
-    exists (
-      select 1 from public.documents d
-      where d.id = document_id
-        and (
-          d.owner_id = (select auth.uid())
-          or exists (
-            select 1 from public.document_shares s
-            where s.document_id = d.id and s.user_id = (select auth.uid()) and s.permission = 'editor'
-          )
-        )
-    )
+    public.is_document_owner(document_id)
+    or public.is_document_editor(document_id)
   );
 
--- DELETE: owner or editor
 drop policy if exists "board_content_delete" on public.board_content;
 create policy "board_content_delete"
   on public.board_content for delete
   using (
-    exists (
-      select 1 from public.documents d
-      where d.id = document_id
-        and (
-          d.owner_id = (select auth.uid())
-          or exists (
-            select 1 from public.document_shares s
-            where s.document_id = d.id and s.user_id = (select auth.uid()) and s.permission = 'editor'
-          )
-        )
-    )
+    public.is_document_owner(document_id)
+    or public.is_document_editor(document_id)
   );
 
+-- ============================================================================
 -- RLS for board_presence
+-- ============================================================================
+
 alter table public.board_presence enable row level security;
 
--- SELECT: owner or shared user
 drop policy if exists "board_presence_select" on public.board_presence;
 create policy "board_presence_select"
   on public.board_presence for select
   using (
-    exists (
-      select 1 from public.documents d
-      where d.id = document_id
-        and (
-          d.owner_id = (select auth.uid())
-          or exists (
-            select 1 from public.document_shares s
-            where s.document_id = d.id and s.user_id = (select auth.uid())
-          )
-        )
-    )
+    public.is_document_owner(document_id)
+    or public.is_document_shared_with_user(document_id)
   );
 
--- INSERT/UPDATE: owner or shared user (any permission level can show cursor)
 drop policy if exists "board_presence_upsert" on public.board_presence;
 create policy "board_presence_upsert"
   on public.board_presence for all
-  using (
-    user_id = (select auth.uid())
-    and exists (
-      select 1 from public.documents d
-      where d.id = document_id
-        and (
-          d.owner_id = (select auth.uid())
-          or exists (
-            select 1 from public.document_shares s
-            where s.document_id = d.id and s.user_id = (select auth.uid())
-          )
-        )
-    )
-  )
-  with check (
-    user_id = (select auth.uid())
-    and exists (
-      select 1 from public.documents d
-      where d.id = document_id
-        and (
-          d.owner_id = (select auth.uid())
-          or exists (
-            select 1 from public.document_shares s
-            where s.document_id = d.id and s.user_id = (select auth.uid())
-          )
-        )
-    )
-  );
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
 
--- DELETE: own presence only (cleaned up on disconnect)
 drop policy if exists "board_presence_delete" on public.board_presence;
 create policy "board_presence_delete"
   on public.board_presence for delete
