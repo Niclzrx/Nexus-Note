@@ -1,4 +1,3 @@
--- ============================================================================
 -- Fix infinite recursion in RLS policies
 -- ============================================================================
 -- The documents ↔ document_shares policies form a cycle:
