@@ -56,7 +56,7 @@ export function ShareDialog({
   async function handleAdd(userId: string, permission: SharePermission) {
     setBusyUserId(userId);
     setError(null);
-    const err = await shareDocument(boardId, userId, permission);
+    const err = await shareDocument(boardId, userId, permission, boardTitle);
     if (err) setError(err);
     else {
       setQuery("");

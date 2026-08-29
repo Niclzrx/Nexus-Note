@@ -24,7 +24,10 @@ export async function registerDocumentOwnership(boardId: string, title: string):
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return;
-  await supabase.from("documents").upsert({ id: boardId, owner_id: user.id, title });
+  const { error } = await supabase
+    .from("documents")
+    .upsert({ id: boardId, owner_id: user.id, title }, { onConflict: "id" });
+  if (error) console.error("Failed to register document ownership:", error.message);
 }
 
 export async function renameDocument(boardId: string, title: string): Promise<void> {
@@ -73,12 +76,24 @@ export async function shareDocument(
   boardId: string,
   targetUserId: string,
   permission: SharePermission,
+  boardTitle?: string,
 ): Promise<string | null> {
   const supabase = createSupabaseBrowserClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return "Faça login para compartilhar.";
+
+  // Ensure the document exists in Supabase (the upsert is idempotent).
+  const { error: upsertErr } = await supabase
+    .from("documents")
+    .upsert({ id: boardId, owner_id: user.id, title: boardTitle ?? "Board" }, { onConflict: "id" });
+  if (upsertErr) return `Erro ao registrar board: ${upsertErr.message}`;
+
   const { error } = await supabase
     .from("document_shares")
     .upsert({ document_id: boardId, user_id: targetUserId, permission }, { onConflict: "document_id,user_id" });
-  if (error) return "Não foi possível compartilhar. Verifique se você é o dono deste board.";
+  if (error) return `Não foi possível compartilhar: ${error.message}`;
   return null;
 }
 
