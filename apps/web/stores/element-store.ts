@@ -6,6 +6,8 @@ import { SpatialGrid } from "@nexus/canvas";
 import { useHistoryStore, type Command } from "./history-store";
 import { useWorkspaceStore } from "./workspace-store";
 import { classifyFile, readImageDimensions, validateFile } from "../lib/file-classification";
+import { pushSingleChange, pushSingleDelete } from "../lib/supabase/sync";
+import { useSyncStore } from "./sync-store";
 
 interface ElementState {
   boardId: string | null;
@@ -55,6 +57,28 @@ function persistConnection(c: Connection) {
 }
 function persistGroup(g: Group) {
   void storageService.groups.put(g);
+}
+
+/**
+ * Push a change to Supabase if the board is shared. Fire-and-forget —
+ * failures don't block the local UI.
+ */
+function syncChange(
+  boardId: string,
+  contentType: "element" | "connection" | "group",
+  data: AnyElement | Connection | Group,
+) {
+  if (!useSyncStore.getState().isShared) return;
+  void pushSingleChange(boardId, contentType, data);
+}
+
+function syncDelete(
+  boardId: string,
+  contentType: "element" | "connection" | "group",
+  contentId: string,
+) {
+  if (!useSyncStore.getState().isShared) return;
+  void pushSingleDelete(boardId, contentType, contentId);
 }
 
 /**
@@ -214,6 +238,7 @@ export const useElementStore = create<ElementState>((set, get) => ({
       return { elements: { ...s.elements, [element.id]: element } };
     });
     persistElement(element);
+    syncChange(boardId, "element", element);
 
     useHistoryStore.getState().push({
       label: "Criar elemento",
@@ -365,6 +390,7 @@ export const useElementStore = create<ElementState>((set, get) => ({
         updatedAt: Date.now(),
       } as AnyElement;
       persistElement(updated);
+      syncChange(el.boardId, "element", updated);
       return { elements: { ...s.elements, [id]: updated } };
     });
   },
@@ -375,6 +401,7 @@ export const useElementStore = create<ElementState>((set, get) => ({
       if (!el) return s;
       const updated = { ...el, tags, updatedAt: Date.now() } as AnyElement;
       persistElement(updated);
+      syncChange(el.boardId, "element", updated);
       return { elements: { ...s.elements, [id]: updated } };
     });
   },
@@ -412,6 +439,7 @@ export const useElementStore = create<ElementState>((set, get) => ({
   commitMove: () => {
     const { dragSnapshot } = get();
     if (!dragSnapshot) return;
+    const { boardId } = get();
     const ids = Object.keys(dragSnapshot);
     const before = dragSnapshot;
     const after: Record<string, Point> = {};
@@ -420,6 +448,7 @@ export const useElementStore = create<ElementState>((set, get) => ({
       if (!el) continue;
       after[id] = el.position;
       persistElement({ ...el, updatedAt: Date.now() });
+      syncChange(boardId!, "element", { ...el, updatedAt: Date.now() });
     }
     set({ dragSnapshot: null });
 
@@ -477,6 +506,7 @@ export const useElementStore = create<ElementState>((set, get) => ({
     const afterPos = el.position;
     if (afterSize.width === beforeSize.width && afterSize.height === beforeSize.height) return;
     persistElement({ ...el, updatedAt: Date.now() });
+    syncChange(el.boardId, "element", { ...el, updatedAt: Date.now() });
 
     const apply = (size: Size, position: Point) => {
       set((s) => {
@@ -551,6 +581,7 @@ export const useElementStore = create<ElementState>((set, get) => ({
 
     for (const el of removed) {
       void storageService.elements.delete(el.id);
+      syncDelete(boardId, "element", el.id);
       void storageService.trash.put({
         id: createId("trash"),
         boardId,
@@ -563,7 +594,10 @@ export const useElementStore = create<ElementState>((set, get) => ({
         version: 1,
       });
     }
-    for (const c of relatedConnections) void storageService.connections.delete(c.id);
+    for (const c of relatedConnections) {
+      void storageService.connections.delete(c.id);
+      syncDelete(boardId, "connection", c.id);
+    }
 
     useHistoryStore.getState().push({
       label: "Excluir elementos",
@@ -668,6 +702,7 @@ export const useElementStore = create<ElementState>((set, get) => ({
     };
     set((s) => ({ connections: { ...s.connections, [connection.id]: connection } }));
     persistConnection(connection);
+    syncChange(boardId, "connection", connection);
 
     useHistoryStore.getState().push({
       label: "Criar conexão",
@@ -687,13 +722,17 @@ export const useElementStore = create<ElementState>((set, get) => ({
   },
 
   deleteConnections: (ids) => {
+    const { boardId } = get();
     const removed = ids.map((id) => get().connections[id]).filter(Boolean) as Connection[];
     set((s) => {
       const next = { ...s.connections };
       for (const id of ids) delete next[id];
       return { connections: next };
     });
-    for (const c of removed) void storageService.connections.delete(c.id);
+    for (const c of removed) {
+      void storageService.connections.delete(c.id);
+      if (boardId) syncDelete(boardId, "connection", c.id);
+    }
 
     useHistoryStore.getState().push({
       label: "Excluir conexão",
@@ -787,6 +826,12 @@ export const useElementStore = create<ElementState>((set, get) => ({
       return { elements: next, groups };
     });
     persistGroup(group);
+    syncChange(boardId, "group", group);
+    // Sync updated elements (groupId changed)
+    for (const id of ids) {
+      const el = get().elements[id];
+      if (el) syncChange(boardId, "element", el);
+    }
 
     useHistoryStore.getState().push({
       label: "Agrupar elementos",
@@ -839,6 +884,7 @@ export const useElementStore = create<ElementState>((set, get) => ({
   },
 
   ungroupElements: (ids) => {
+    const { boardId } = get();
     const groupIds = new Set(
       ids.map((id) => get().elements[id]?.groupId).filter((id): id is string => Boolean(id)),
     );
@@ -862,7 +908,17 @@ export const useElementStore = create<ElementState>((set, get) => ({
       for (const group of affectedGroups) delete groups[group.id];
       return { elements: next, groups };
     });
-    for (const group of affectedGroups) void storageService.groups.delete(group.id);
+    for (const group of affectedGroups) {
+      void storageService.groups.delete(group.id);
+      if (boardId) syncDelete(boardId, "group", group.id);
+    }
+    // Sync updated elements (groupId cleared)
+    if (boardId) {
+      for (const id of ids) {
+        const el = get().elements[id];
+        if (el) syncChange(boardId, "element", el);
+      }
+    }
 
     useHistoryStore.getState().push({
       label: "Desagrupar elementos",
@@ -938,7 +994,10 @@ export const useElementStore = create<ElementState>((set, get) => ({
       }
       return { elements: next };
     });
-    for (const el of duplicates) persistElement(el);
+    for (const el of duplicates) {
+      persistElement(el);
+      syncChange(boardId, "element", el);
+    }
     syncBoardElementCount(boardId, Object.keys(get().elements).length);
 
     useHistoryStore.getState().push({

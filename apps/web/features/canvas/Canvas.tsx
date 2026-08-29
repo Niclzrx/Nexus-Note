@@ -8,14 +8,19 @@ import { useElementStore } from "../../stores/element-store";
 import { useSelectionStore } from "../../stores/selection-store";
 import { useHistoryStore } from "../../stores/history-store";
 import { useUiStore } from "../../stores/ui-store";
+import { useSyncStore } from "../../stores/sync-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
 import { useElementSize } from "../../hooks/use-element-size";
+import { useRealtime } from "../../hooks/use-realtime";
+import { usePresence } from "../../hooks/use-presence";
+import { useAuth } from "../../hooks/use-auth";
 import { CanvasBackground } from "./CanvasBackground";
 import { NodeView } from "./NodeView";
 import { ConnectionsLayer } from "./ConnectionsLayer";
 import { FloatingToolbar } from "./FloatingToolbar";
 import { PropertyPanel } from "./PropertyPanel";
 import { Minimap } from "./Minimap";
+import { RemoteCursors } from "./RemoteCursors";
 
 type DragMode = "none" | "pan" | "marquee" | "move" | "resize" | "connect" | "pinch";
 
@@ -107,6 +112,11 @@ export function Canvas({ board }: { board: Board }) {
     () => elementList.filter((el) => selectedElementIds.has(el.id)),
     [elementList, selectedElementIds],
   );
+
+  const isShared = useSyncStore((s) => s.isShared);
+  const { profile } = useAuth();
+  useRealtime(board.id, isShared);
+  const { broadcastCursor } = usePresence(board.id, profile?.id ?? "", profile?.username ?? "", isShared);
 
   // ---- Fase 5: viewport-culled rendering ----
   // Only nodes whose bounds intersect the (padded) visible world rect get
@@ -384,6 +394,12 @@ export function Canvas({ board }: { board: Board }) {
     (e: React.PointerEvent) => {
       const screenPoint = toContainerPoint(e.clientX, e.clientY);
 
+      // Broadcast cursor position to remote users
+      if (isShared && profile) {
+        const worldPoint = screenToWorld(screenPoint, viewport);
+        broadcastCursor(worldPoint.x, worldPoint.y);
+      }
+
       if (dragMode === "pan") {
         const dx = screenPoint.x - lastScreenPoint.current.x;
         const dy = screenPoint.y - lastScreenPoint.current.y;
@@ -424,7 +440,7 @@ export function Canvas({ board }: { board: Board }) {
       // (they read directly from the native event's coordinates); nothing
       // to do here.
     },
-    [dragMode, pan, moveElements, resizeElement, toContainerPoint, viewport],
+    [dragMode, pan, moveElements, resizeElement, toContainerPoint, viewport, isShared, profile, broadcastCursor],
   );
 
   const onPointerUp = useCallback(
@@ -609,6 +625,7 @@ export function Canvas({ board }: { board: Board }) {
           onSelectConnection={selectConnection}
           pending={pendingConnection}
         />
+        <RemoteCursors zoom={viewport.zoom} />
         {visibleElements.map((el) => (
           <NodeView
             key={el.id}

@@ -15,10 +15,13 @@ import {
   Undo2,
   Redo2,
   Users2,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { IconButton, Button } from "@nexus/design-system";
 import type { Board } from "@nexus/types";
 import { useUiStore, type SaveStatus } from "../../stores/ui-store";
+import { useSyncStore } from "../../stores/sync-store";
 import { useWorkspaceStore } from "../../stores/workspace-store";
 import { useHistoryStore } from "../../stores/history-store";
 import { registerDocumentOwnership, renameDocument, deleteDocumentOwnership } from "../../lib/supabase/documents";
@@ -43,6 +46,11 @@ export function BoardNavbar({ board }: { board: Board }) {
   const setTheme = useUiStore((s) => s.setTheme);
   const toggleMobileSidebar = useUiStore((s) => s.toggleMobileSidebar);
   const status = statusConfig[saveStatus];
+
+  const isShared = useSyncStore((s) => s.isShared);
+  const syncStatus = useSyncStore((s) => s.status);
+  const remoteUsers = useSyncStore((s) => s.remoteUsers);
+  const lastSyncedAt = useSyncStore((s) => s.lastSyncedAt);
 
   // Registers ownership in Supabase the first time a board's navbar mounts
   // (idempotent — `upsert` — so this is safe to call on every visit, which
@@ -102,6 +110,19 @@ export function BoardNavbar({ board }: { board: Board }) {
           <status.icon className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{status.label}</span>
         </span>
+
+        {isShared && (
+          <span className={`flex items-center gap-1.5 px-1.5 text-xs ${syncStatus === "syncing" ? "text-text-muted animate-pulse" : "text-success"}`}>
+            {syncStatus === "syncing" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Wifi className="h-3.5 w-3.5" />
+            )}
+            <span className="hidden sm:inline">
+              {remoteUsers.size > 0 ? `${remoteUsers.size} online` : "Sync"}
+            </span>
+          </span>
+        )}
 
         <IconButton
           label="Alternar tema"
