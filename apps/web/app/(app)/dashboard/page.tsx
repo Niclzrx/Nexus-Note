@@ -5,9 +5,42 @@ import { useRouter } from "next/navigation";
 import { Plus, Star, Clock, LayoutGrid, Menu, Users } from "lucide-react";
 import { Button, IconButton } from "@nexus/design-system";
 import type { Board } from "@nexus/types";
+import { DEFAULT_BOARD_SETTINGS, DEFAULT_VIEWPORT } from "@nexus/types";
+import { storageService } from "@nexus/storage";
 import { useWorkspaceStore } from "../../../stores/workspace-store";
 import { useUiStore } from "../../../stores/ui-store";
-import { listSharedBoards, type SharedBoard } from "../../../lib/supabase/documents";
+import { listSharedBoards, listOwnedBoards, type SharedBoard } from "../../../lib/supabase/documents";
+
+async function syncBoardsFromSupabase() {
+  const remoteBoards = await listOwnedBoards();
+  const localBoards = useWorkspaceStore.getState().boards;
+  const localIds = new Set(localBoards.map((b) => b.id));
+  const now = Date.now();
+
+  for (const remote of remoteBoards) {
+    if (!localIds.has(remote.id)) {
+      // Board exists in Supabase but not locally — create local record
+      const localBoard: Board = {
+        id: remote.id,
+        workspaceId: "default",
+        name: remote.title,
+        isFavorite: false,
+        isTrashed: false,
+        lastOpenedAt: now,
+        viewport: DEFAULT_VIEWPORT,
+        settings: DEFAULT_BOARD_SETTINGS,
+        elementCount: 0,
+        createdAt: now,
+        updatedAt: now,
+        version: 1,
+      };
+      await storageService.boards.put(localBoard);
+    }
+  }
+
+  // Reload boards from IndexedDB
+  useWorkspaceStore.getState().refreshBoards();
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -19,6 +52,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     void listSharedBoards().then(setSharedBoards);
+    // Fetch boards from Supabase and merge with local IndexedDB
+    void syncBoardsFromSupabase();
   }, []);
 
   const active = useMemo(() => boards.filter((b) => !b.isTrashed), [boards]);

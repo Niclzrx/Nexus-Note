@@ -153,6 +153,25 @@ export interface SharedBoard {
   permission: SharePermission;
 }
 
+export async function listOwnedBoards(): Promise<{ id: string; title: string }[]> {
+  const supabase = createSupabaseBrowserClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from("documents")
+    .select("id, title")
+    .eq("owner_id", user.id);
+
+  if (error || !data) {
+    console.error("listOwnedBoards failed:", error?.message ?? "Unknown error");
+    return [];
+  }
+  return data;
+}
+
 export async function getSharedBoardMeta(
   boardId: string,
 ): Promise<{ id: string; title: string; permission: SharePermission } | null> {

@@ -38,8 +38,9 @@ export default function BoardPage() {
     storageService.boards.get(boardId).then(async (record) => {
       if (cancelled) return;
 
-      // Found locally — proceed normally
+      // Found locally — enable sync so content pushes to Supabase
       if (record) {
+        useSyncStore.setState({ isShared: true });
         setBoard(record);
         loadViewport(record.id, record.viewport, record.settings.gridEnabled);
         await loadBoardElements(record.id);
