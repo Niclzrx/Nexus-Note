@@ -2,7 +2,6 @@
 
 import { useRef, useCallback } from "react";
 import { Highlight, themes } from "prism-react-renderer";
-import type { Prism } from "prism-react-renderer";
 
 const draculaTheme = themes.dracula;
 
@@ -28,6 +27,8 @@ const LANGUAGES = [
   "swift",
   "kotlin",
 ] as const;
+
+type Language = (typeof LANGUAGES)[number];
 
 interface CodeEditorProps {
   language: string;
@@ -74,8 +75,10 @@ export function CodeEditor({
     }
   }, []);
 
-  // Normalize language for Prism
-  const normalizedLang = language.toLowerCase().trim() || "javascript";
+  // Normalize language for Prism — fallback to "javascript" if not in list
+  const normalizedLang: Language = LANGUAGES.includes(language.toLowerCase().trim() as Language)
+    ? (language.toLowerCase().trim() as Language)
+    : "javascript";
 
   return (
     <div className="flex h-full flex-col">
@@ -95,7 +98,7 @@ export function CodeEditor({
       </div>
 
       <div className="relative flex-1 overflow-hidden rounded-md bg-[#282a36]">
-        <Highlight theme={draculaTheme} code={content || " "} language={normalizedLang as keyof typeof Prism.languages}>
+        <Highlight theme={draculaTheme} code={content || " "} language={normalizedLang}>
           {({ tokens, getLineProps, getTokenProps }) => (
             <pre
               ref={preRef}
