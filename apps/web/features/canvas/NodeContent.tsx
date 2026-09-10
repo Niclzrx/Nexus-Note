@@ -13,6 +13,7 @@ import { Download, FileText, MapPin, Plus, X } from "lucide-react";
 import { useAssetUrl } from "../../hooks/use-asset-url";
 import { formatBytes } from "../../lib/format";
 import { CodeEditor } from "./CodeEditor";
+import { RichTextEditor } from "./RichTextEditor";
 
 interface NodeContentProps {
   element: AnyElement;
@@ -49,15 +50,11 @@ export function NodeContent({ element, onChange }: NodeContentProps) {
 
     case "text":
       return (
-        <div className="flex h-full items-center p-2.5">
-          <textarea
-            value={element.data.content}
-            onChange={(e) => onChange({ content: e.target.value })}
-            onPointerDown={stop}
-            className="nx-scroll h-full w-full resize-none bg-transparent font-display text-base font-medium text-text outline-none placeholder:text-text-faint"
-            placeholder="Texto…"
-          />
-        </div>
+        <RichTextEditor
+          content={element.data.content}
+          onChange={(content) => onChange({ content })}
+          placeholder="Digite algo…"
+        />
       );
 
     case "task": {

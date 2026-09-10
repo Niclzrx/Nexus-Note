@@ -34,6 +34,7 @@ interface NodeViewProps {
   onSelect: (e: React.PointerEvent) => void;
   onFocusSelect: () => void;
   onContentChange: (patch: Record<string, unknown>) => void;
+  onDoubleClick?: () => void;
 }
 
 const TYPE_ICON: Record<ElementType, typeof StickyNote> = {
@@ -119,6 +120,7 @@ export const NodeView = React.memo(function NodeView({
   onSelect,
   onFocusSelect,
   onContentChange,
+  onDoubleClick,
 }: NodeViewProps) {
   const Icon = TYPE_ICON[element.type];
 
@@ -156,6 +158,10 @@ export const NodeView = React.memo(function NodeView({
         e.stopPropagation();
         onSelect(e);
         onPointerDownDrag(e);
+      }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onDoubleClick?.();
       }}
     >
       <div

@@ -23,6 +23,7 @@ import { PropertyPanel } from "./PropertyPanel";
 import { Minimap } from "./Minimap";
 // [REVIEW] Sync: re-enable when sharing is activated
 // import { RemoteCursors } from "./RemoteCursors";
+import { ElementViewer } from "./ElementViewer";
 
 type DragMode = "none" | "pan" | "marquee" | "move" | "resize" | "connect" | "pinch";
 
@@ -86,6 +87,7 @@ export function Canvas({ board }: { board: Board }) {
   const [pendingConnection, setPendingConnection] = useState<{ fromId: string; toWorld: Point } | null>(null);
   const [spacePanning, setSpacePanning] = useState(false);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [viewerElementId, setViewerElementId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const lastScreenPoint = useRef<Point>({ x: 0, y: 0 });
@@ -642,6 +644,7 @@ export function Canvas({ board }: { board: Board }) {
             onResizeStart={(e) => onNodeResizeStart(el.id, e)}
             onConnectStart={(e) => onNodeConnectStart(el.id, e)}
             onContentChange={(patch) => updateElementData(el.id, patch)}
+            onDoubleClick={() => setViewerElementId(el.id)}
           />
         ))}
       </div>
@@ -698,6 +701,12 @@ export function Canvas({ board }: { board: Board }) {
       <div className="hidden md:block">
         <Minimap elements={elementList} viewport={viewport} viewportSize={containerSize} onNavigate={navigateTo} />
       </div>
+
+      <ElementViewer
+        element={viewerElementId ? (elements[viewerElementId] ?? null) : null}
+        open={viewerElementId !== null}
+        onClose={() => setViewerElementId(null)}
+      />
     </div>
   );
 }
