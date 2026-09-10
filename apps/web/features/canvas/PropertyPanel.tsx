@@ -15,6 +15,7 @@ interface PropertyPanelProps {
   onGroup: () => void;
   onUngroup: () => void;
   onTagsChange: (id: string, tags: string[]) => void;
+  readonly?: boolean;
 }
 
 export function PropertyPanel({
@@ -26,6 +27,7 @@ export function PropertyPanel({
   onGroup,
   onUngroup,
   onTagsChange,
+  readonly = false,
 }: PropertyPanelProps) {
   const single = selectedElements.length === 1 ? selectedElements[0] : null;
   const isGrouped = selectedElements.some((el) => el.groupId);
@@ -93,7 +95,7 @@ export function PropertyPanel({
               </p>
             </div>
             <TagEditor tags={single.tags} onChange={(tags) => onTagsChange(single.id, tags)} />
-            {single.groupId ? (
+            {!readonly && single.groupId ? (
               <button
                 type="button"
                 onClick={onUngroup}
@@ -102,20 +104,22 @@ export function PropertyPanel({
                 <Ungroup className="h-3.5 w-3.5" /> Desagrupar
               </button>
             ) : null}
-            <button
-              type="button"
-              onClick={onDelete}
-              className="flex w-full items-center justify-center gap-1.5 rounded-md border border-error/30 bg-error/10 px-2.5 py-2 text-error transition-colors hover:bg-error/20"
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Excluir
-            </button>
+            {!readonly && (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="flex w-full items-center justify-center gap-1.5 rounded-md border border-error/30 bg-error/10 px-2.5 py-2 text-error transition-colors hover:bg-error/20"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Excluir
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-2">
             <p className="text-xs text-text-faint">
               {selectedElements.length} elementos selecionados.
             </p>
-            {isGrouped ? (
+            {!readonly && isGrouped ? (
               <button
                 type="button"
                 onClick={onUngroup}
@@ -123,7 +127,7 @@ export function PropertyPanel({
               >
                 <Ungroup className="h-3.5 w-3.5" /> Desagrupar
               </button>
-            ) : (
+            ) : !readonly ? (
               <button
                 type="button"
                 onClick={onGroup}
@@ -131,14 +135,16 @@ export function PropertyPanel({
               >
                 <GroupIcon className="h-3.5 w-3.5" /> Agrupar (Ctrl+G)
               </button>
+            ) : null}
+            {!readonly && (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="flex w-full items-center justify-center gap-1.5 rounded-md border border-error/30 bg-error/10 px-2.5 py-2 text-xs text-error transition-colors hover:bg-error/20"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Excluir seleção
+              </button>
             )}
-            <button
-              type="button"
-              onClick={onDelete}
-              className="flex w-full items-center justify-center gap-1.5 rounded-md border border-error/30 bg-error/10 px-2.5 py-2 text-xs text-error transition-colors hover:bg-error/20"
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Excluir seleção
-            </button>
           </div>
         )}
       </div>

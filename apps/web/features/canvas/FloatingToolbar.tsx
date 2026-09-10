@@ -31,6 +31,7 @@ interface FloatingToolbarProps {
   onUploadClick: () => void;
   visibleCount?: number;
   totalCount?: number;
+  readonly?: boolean;
 }
 
 const navigationTools: { id: CanvasTool; label: string; icon: typeof MousePointer2 }[] = [
@@ -61,6 +62,7 @@ export function FloatingToolbar({
   onUploadClick,
   visibleCount,
   totalCount,
+  readonly = false,
 }: FloatingToolbarProps) {
   return (
     <Panel
@@ -79,25 +81,29 @@ export function FloatingToolbar({
         </IconButton>
       ))}
 
-      <div className="mx-1 h-5 w-px shrink-0 bg-border" />
+      {!readonly && (
+        <>
+          <div className="mx-1 h-5 w-px shrink-0 bg-border" />
 
-      {creationTools.map((tool) => (
-        <IconButton
-          key={tool.id}
-          label={tool.label}
-          size="sm"
-          active={activeTool === tool.id}
-          onClick={() => onToolChange(tool.id)}
-        >
-          <tool.icon />
-        </IconButton>
-      ))}
+          {creationTools.map((tool) => (
+            <IconButton
+              key={tool.id}
+              label={tool.label}
+              size="sm"
+              active={activeTool === tool.id}
+              onClick={() => onToolChange(tool.id)}
+            >
+              <tool.icon />
+            </IconButton>
+          ))}
 
-      <div className="mx-1 h-5 w-px shrink-0 bg-border" />
+          <div className="mx-1 h-5 w-px shrink-0 bg-border" />
 
-      <IconButton label="Enviar arquivo" size="sm" onClick={onUploadClick}>
-        <Upload />
-      </IconButton>
+          <IconButton label="Enviar arquivo" size="sm" onClick={onUploadClick}>
+            <Upload />
+          </IconButton>
+        </>
+      )}
 
       <div className="mx-1 h-5 w-px shrink-0 bg-border" />
 

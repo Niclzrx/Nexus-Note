@@ -114,6 +114,8 @@ export function Canvas({ board }: { board: Board }) {
   );
 
   const isShared = useSyncStore((s) => s.isShared);
+  const role = useSyncStore((s) => s.role);
+  const readonly = role === "viewer";
   const { profile } = useAuth();
   useRealtime(board.id, isShared);
   const { broadcastCursor } = usePresence(board.id, profile?.id ?? "", profile?.username ?? "", isShared);
@@ -301,6 +303,7 @@ export function Canvas({ board }: { board: Board }) {
       }
 
       if (CREATABLE_TYPES.includes(activeTool as ElementType)) {
+        if (readonly) return;
         const worldPoint = screenToWorld(screenPoint, viewport);
         const created = createElement(activeTool as ElementType, {
           x: worldPoint.x - 120,
@@ -319,7 +322,7 @@ export function Canvas({ board }: { board: Board }) {
       setDragMode("marquee");
       (e.target as Element).setPointerCapture(e.pointerId);
     },
-    [activeTool, spacePanning, toContainerPoint, viewport, createElement, selectOnly, setActiveTool, clearSelection],
+    [activeTool, spacePanning, toContainerPoint, viewport, createElement, selectOnly, setActiveTool, clearSelection, readonly],
   );
 
   const onNodeSelect = useCallback(
@@ -522,22 +525,13 @@ export function Canvas({ board }: { board: Board }) {
   );
 
   const handleDelete = useCallback(() => {
-    // Read the CURRENT selection straight from the store rather than the
-    // `selectedElementIds`/`selectedConnectionIds` closed over by this
-    // callback. This is what was actually causing "select something, press
-    // Delete, the selection ring disappears but nothing is removed": if
-    // this callback ran with even a slightly stale closure (empty
-    // selection), the delete calls were skipped by their `size > 0` guards
-    // but `clearSelection()` below still ran unconditionally — wiping the
-    // real, current selection in the store without deleting anything.
-    // Reading fresh state here removes the possibility of that mismatch
-    // entirely, rather than just reordering around it.
+    if (readonly) return;
     const { elementIds, connectionIds } = useSelectionStore.getState();
     if (elementIds.size === 0 && connectionIds.size === 0) return;
     if (elementIds.size > 0) deleteElements(Array.from(elementIds));
     if (connectionIds.size > 0) deleteConnections(Array.from(connectionIds));
     clearSelection();
-  }, [deleteElements, deleteConnections, clearSelection]);
+  }, [deleteElements, deleteConnections, clearSelection, readonly]);
 
   const navigateTo = useCallback(
     (worldX: number, worldY: number) => {
@@ -564,12 +558,15 @@ export function Canvas({ board }: { board: Board }) {
     },
     onPanToolHold: setSpacePanning,
     onGroup: () => {
+      if (readonly) return;
       if (selectedElementIds.size >= 2) groupElements(Array.from(selectedElementIds));
     },
     onUngroup: () => {
+      if (readonly) return;
       if (selectedElementIds.size >= 1) ungroupElements(Array.from(selectedElementIds));
     },
     onDuplicate: () => {
+      if (readonly) return;
       const { elementIds } = useSelectionStore.getState();
       if (elementIds.size === 0) return;
       const newIds = duplicateElements(Array.from(elementIds));
@@ -676,6 +673,7 @@ export function Canvas({ board }: { board: Board }) {
         onGroup={() => groupElements(Array.from(selectedElementIds))}
         onUngroup={() => ungroupElements(Array.from(selectedElementIds))}
         onTagsChange={updateElementTags}
+        readonly={readonly}
       />
 
       <FloatingToolbar
@@ -687,6 +685,7 @@ export function Canvas({ board }: { board: Board }) {
         onFit={resetViewport}
         onUploadClick={() => fileInputRef.current?.click()}
         visibleCount={visibleElements.length}
+        readonly={readonly}
         totalCount={elementList.length}
       />
 

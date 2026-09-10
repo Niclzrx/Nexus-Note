@@ -48,17 +48,21 @@ export function BoardNavbar({ board }: { board: Board }) {
   const status = statusConfig[saveStatus];
 
   const isShared = useSyncStore((s) => s.isShared);
+  const role = useSyncStore((s) => s.role);
   const syncStatus = useSyncStore((s) => s.status);
   const remoteUsers = useSyncStore((s) => s.remoteUsers);
   const lastSyncedAt = useSyncStore((s) => s.lastSyncedAt);
 
-  // Registers ownership in Supabase the first time a board's navbar mounts
-  // (idempotent — `upsert` — so this is safe to call on every visit, which
-  // also self-heals boards created before this Supabase integration existed).
+  const isOwner = role === "owner";
+  const isReadonly = role === "viewer";
+
+  // Only register ownership for the actual owner
   useEffect(() => {
-    void registerDocumentOwnership(board.id, board.name);
+    if (isOwner) {
+      void registerDocumentOwnership(board.id, board.name);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [board.id]);
+  }, [board.id, isOwner]);
 
   async function handleDeleteBoard() {
     if (!window.confirm(`Mover "${board.name}" para a lixeira? Você pode restaurar depois.`)) return;
@@ -80,7 +84,9 @@ export function BoardNavbar({ board }: { board: Board }) {
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
+          readOnly={isReadonly}
           onBlur={() => {
+            if (isReadonly) return;
             const trimmed = name.trim();
             if (!trimmed) return;
             renameBoard(board.id, trimmed);
@@ -91,9 +97,11 @@ export function BoardNavbar({ board }: { board: Board }) {
       </div>
 
       <div className="flex items-center gap-1">
-        <Button variant="secondary" size="sm" onClick={() => setShareOpen(true)}>
-          <Users2 className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Compartilhar</span>
-        </Button>
+        {isOwner && (
+          <Button variant="secondary" size="sm" onClick={() => setShareOpen(true)}>
+            <Users2 className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Compartilhar</span>
+          </Button>
+        )}
 
         <div className="mx-1.5 h-5 w-px bg-border" />
 
@@ -132,9 +140,11 @@ export function BoardNavbar({ board }: { board: Board }) {
           {resolvedTheme === "dark" ? <Sun /> : <Moon />}
         </IconButton>
 
-        <IconButton label="Excluir board" size="sm" onClick={handleDeleteBoard}>
-          <Trash2 />
-        </IconButton>
+        {isOwner && (
+          <IconButton label="Excluir board" size="sm" onClick={handleDeleteBoard}>
+            <Trash2 />
+          </IconButton>
+        )}
       </div>
 
       <ShareDialog boardId={board.id} boardTitle={board.name} open={shareOpen} onClose={() => setShareOpen(false)} />

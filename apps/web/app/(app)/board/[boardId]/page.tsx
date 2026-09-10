@@ -38,9 +38,9 @@ export default function BoardPage() {
     storageService.boards.get(boardId).then(async (record) => {
       if (cancelled) return;
 
-      // Found locally — enable sync so content pushes to Supabase
+      // Found locally — owner's board, enable sync
       if (record) {
-        useSyncStore.setState({ isShared: true });
+        useSyncStore.setState({ isShared: true, role: "owner" });
         setBoard(record);
         loadViewport(record.id, record.viewport, record.settings.gridEnabled);
         await loadBoardElements(record.id);
@@ -78,8 +78,8 @@ export default function BoardPage() {
       // Persist to local IndexedDB so subsequent visits don't hit Supabase again
       await storageService.boards.put(localBoard);
 
-      // Mark as shared in sync store
-      useSyncStore.setState({ isShared: true });
+      // Mark as shared with the user's permission role
+      useSyncStore.setState({ isShared: true, role: sharedMeta.permission });
 
       setBoard(localBoard);
       loadViewport(localBoard.id, localBoard.viewport, localBoard.settings.gridEnabled);
@@ -112,11 +112,6 @@ export default function BoardPage() {
   }
 
   return (
-    // key={board.id}: Next.js reuses this page's component instance when
-    // navigating between two boards under the same [boardId] route (it
-    // doesn't remount by default). Without the key, BoardNavbar's internal
-    // `name` input state and Canvas's internal drag/selection refs would
-    // carry over stale values from the previous board.
     <div key={board.id} className="flex h-full flex-col">
       <BoardNavbar board={board} />
       <div className="relative flex-1">
