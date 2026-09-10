@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Sparkles, Network, Layers, Search, PenLine, Link2, Compass } from "lucide-react";
 import { Button } from "@nexus/design-system";
 import { LandingHeader } from "../features/landing/LandingHeader";
+import { createSupabaseServerClient } from "../lib/supabase/server";
 
 export const metadata = {
   title: "Nexus Note — Organize ideias. Conecte conhecimento.",
@@ -9,10 +10,19 @@ export const metadata = {
     "Um espaço visual de conhecimento baseado em canvas infinito: notas, mídias, tarefas e links, todos conectáveis entre si. 100% local, sem contas.",
 };
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  let isLoggedIn = false;
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    isLoggedIn = !!user;
+  } catch {
+    // Supabase not configured — treat as logged out
+  }
+
   return (
     <main className="flex min-h-dvh flex-col bg-bg">
-      <LandingHeader />
+      <LandingHeader isLoggedIn={isLoggedIn} />
 
       <section className="flex flex-1 flex-col items-center justify-center px-6 pb-8 pt-10 text-center sm:pb-12 sm:pt-16">
         <h1 className="font-display text-3xl font-bold tracking-tight text-text sm:text-5xl">
@@ -25,16 +35,26 @@ export default function LandingPage() {
           Tudo conectável entre si, 100% local, sem necessidade de contas.
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <Link href="/signup">
-            <Button variant="primary" size="lg">
-              Comece agora
-            </Button>
-          </Link>
-          <Link href="/login">
-            <Button variant="secondary" size="lg">
-              Já tenho conta
-            </Button>
-          </Link>
+          {isLoggedIn ? (
+            <Link href="/dashboard">
+              <Button variant="primary" size="lg">
+                Ir para o Dashboard
+              </Button>
+            </Link>
+          ) : (
+            <>
+              <Link href="/signup">
+                <Button variant="primary" size="lg">
+                  Comece agora
+                </Button>
+              </Link>
+              <Link href="/login">
+                <Button variant="secondary" size="lg">
+                  Já tenho conta
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
       </section>
 
@@ -74,8 +94,14 @@ export default function LandingPage() {
             <span className="text-sm text-text-muted">Nexus Note</span>
           </div>
           <nav className="flex gap-4 text-sm text-text-muted">
-            <Link href="/login" className="hover:text-text transition-colors">Entrar</Link>
-            <Link href="/signup" className="hover:text-text transition-colors">Criar conta</Link>
+            {isLoggedIn ? (
+              <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
+            ) : (
+              <>
+                <Link href="/login" className="hover:text-text transition-colors">Entrar</Link>
+                <Link href="/signup" className="hover:text-text transition-colors">Criar conta</Link>
+              </>
+            )}
           </nav>
         </div>
       </footer>

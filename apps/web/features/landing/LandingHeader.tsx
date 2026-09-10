@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Moon, Sun, Sparkles } from "lucide-react";
 import { Button } from "@nexus/design-system";
 
-export function LandingHeader() {
+export function LandingHeader({ isLoggedIn }: { isLoggedIn: boolean }) {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
   useEffect(() => {
@@ -38,17 +38,27 @@ export function LandingHeader() {
         >
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
-        <Link href="/login">
-          <Button variant="ghost" size="sm">
-            Entrar
-          </Button>
-        </Link>
-        <Link href="/signup">
-          <Button variant="primary" size="sm">
-            <span className="hidden sm:inline">Criar conta</span>
-            <span className="sm:hidden">Criar</span>
-          </Button>
-        </Link>
+        {isLoggedIn ? (
+          <Link href="/dashboard">
+            <Button variant="primary" size="sm">
+              Dashboard
+            </Button>
+          </Link>
+        ) : (
+          <>
+            <Link href="/login">
+              <Button variant="ghost" size="sm">
+                Entrar
+              </Button>
+            </Link>
+            <Link href="/signup">
+              <Button variant="primary" size="sm">
+                <span className="hidden sm:inline">Criar conta</span>
+                <span className="sm:hidden">Criar</span>
+              </Button>
+            </Link>
+          </>
+        )}
       </nav>
     </header>
   );
