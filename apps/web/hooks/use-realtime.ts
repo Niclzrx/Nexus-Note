@@ -5,6 +5,7 @@ import { storageService } from "@nexus/storage";
 import {
   subscribeToBoardChanges,
   pullBoardContent,
+  pushBoardContent,
   type ChangePayload,
 } from "../lib/supabase/sync";
 import { useElementStore } from "../stores/element-store";
@@ -77,6 +78,19 @@ export function useRealtime(boardId: string, isShared: boolean) {
 
       setLastSyncedAt(Date.now());
       setStatus("synced");
+
+      // Push local content that doesn't exist in Supabase yet
+      // (handles the case where the owner created content before isShared was true)
+      const finalElements = Object.values(useElementStore.getState().elements);
+      const finalConnections = Object.values(useElementStore.getState().connections);
+      const finalGroups = Object.values(useElementStore.getState().groups);
+      if (finalElements.length > 0 || finalConnections.length > 0 || finalGroups.length > 0) {
+        void pushBoardContent(boardId, {
+          elements: finalElements,
+          connections: finalConnections,
+          groups: finalGroups,
+        }).catch((err) => console.error("useRealtime: initial push failed:", err));
+      }
 
       // Subscribe to live changes
       channelRef.current = subscribeToBoardChanges(boardId, (payload) => {

@@ -139,25 +139,40 @@ export async function pushSingleChange(
   contentType: "element" | "connection" | "group",
   data: AnyElement | Connection | Group,
 ): Promise<void> {
-  const supabase = createSupabaseBrowserClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
+  try {
+    const supabase = createSupabaseBrowserClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
 
-  const updatedAt = "updatedAt" in data ? data.updatedAt : Date.now();
+    // Ensure the documents row exists (handles race with registerDocumentOwnership)
+    const { error: docErr } = await supabase
+      .from("documents")
+      .insert({ id: boardId, owner_id: user.id, title: "Board" });
+    // Ignore duplicate key — document already exists
+    if (docErr && docErr.code !== "23505") {
+      console.error("pushSingleChange: documents insert failed:", docErr.message);
+      return;
+    }
 
-  await supabase.from("board_content").upsert(
-    {
-      document_id: boardId,
-      content_type: contentType,
-      content_id: data.id,
-      data,
-      updated_at: new Date(updatedAt).toISOString(),
-      updated_by: user.id,
-    },
-    { onConflict: "document_id,content_type,content_id" },
-  );
+    const updatedAt = "updatedAt" in data ? data.updatedAt : Date.now();
+
+    const { error } = await supabase.from("board_content").upsert(
+      {
+        document_id: boardId,
+        content_type: contentType,
+        content_id: data.id,
+        data,
+        updated_at: new Date(updatedAt).toISOString(),
+        updated_by: user.id,
+      },
+      { onConflict: "document_id,content_type,content_id" },
+    );
+    if (error) console.error("pushSingleChange failed:", error.message);
+  } catch (err) {
+    console.error("pushSingleChange error:", err);
+  }
 }
 
 /**
@@ -168,13 +183,18 @@ export async function pushSingleDelete(
   contentType: "element" | "connection" | "group",
   contentId: string,
 ): Promise<void> {
-  const supabase = createSupabaseBrowserClient();
-  await supabase
-    .from("board_content")
-    .delete()
-    .eq("document_id", boardId)
-    .eq("content_type", contentType)
-    .eq("content_id", contentId);
+  try {
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase
+      .from("board_content")
+      .delete()
+      .eq("document_id", boardId)
+      .eq("content_type", contentType)
+      .eq("content_id", contentId);
+    if (error) console.error("pushSingleDelete failed:", error.message);
+  } catch (err) {
+    console.error("pushSingleDelete error:", err);
+  }
 }
 
 /**

@@ -350,6 +350,7 @@ export const useElementStore = create<ElementState>((set, get) => ({
       return { elements: { ...s.elements, [element.id]: element } };
     });
     persistElement(element);
+    syncChange(boardId, "element", element);
 
     useHistoryStore.getState().push({
       label: "Adicionar mídia",
