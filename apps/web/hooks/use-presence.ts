@@ -6,7 +6,6 @@ import {
   getPresenceStates,
   untrackPresence,
   getUserColor,
-  type PresenceState,
 } from "../lib/supabase/sync";
 import { useSyncStore } from "../stores/sync-store";
 
@@ -39,23 +38,35 @@ export function usePresence(boardId: string, userId: string, username: string, i
 
     let cancelled = false;
 
-    channelRef.current = trackPresence(boardId, userId, username);
+    // Get channel without subscribing — we register callbacks first
+    const channel = trackPresence(boardId, userId, username);
+    channelRef.current = channel;
 
     // Poll presence state every 2 seconds to pick up new/removed users
     const interval = setInterval(() => {
       if (cancelled || !channelRef.current) return;
       const users = getPresenceStates(channelRef.current);
-      // Remove self from remote users
       users.delete(userId);
       setRemoteUsers(users);
     }, 2000);
 
-    // Listen for presence changes
-    channelRef.current.on("presence", { event: "sync" }, () => {
+    // Register presence callback BEFORE subscribing
+    channel.on("presence", { event: "sync" }, () => {
       if (cancelled || !channelRef.current) return;
       const users = getPresenceStates(channelRef.current);
       users.delete(userId);
       setRemoteUsers(users);
+    });
+
+    // Subscribe AFTER all callbacks are registered
+    channel.subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await channel.track({
+          user_id: userId,
+          username,
+          online_at: new Date().toISOString(),
+        });
+      }
     });
 
     return () => {

@@ -261,19 +261,11 @@ export function trackPresence(
   const supabase = createSupabaseBrowserClient();
   const channel = supabase.channel(`presence:${boardId}`);
 
+  // Register empty callbacks — the caller adds its own and then subscribes.
   channel
     .on("presence", { event: "sync" }, () => {})
     .on("presence", { event: "join" }, () => {})
-    .on("presence", { event: "leave" }, () => {})
-    .subscribe(async (status) => {
-      if (status === "SUBSCRIBED") {
-        await channel.track({
-          user_id: userId,
-          username,
-          online_at: new Date().toISOString(),
-        });
-      }
-    });
+    .on("presence", { event: "leave" }, () => {});
 
   return channel;
 }

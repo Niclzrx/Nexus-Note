@@ -26,8 +26,11 @@ export async function registerDocumentOwnership(boardId: string, title: string):
   if (!user) return;
   const { error } = await supabase
     .from("documents")
-    .upsert({ id: boardId, owner_id: user.id, title }, { onConflict: "id" });
-  if (error) console.error("Failed to register document ownership:", error.message);
+    .insert({ id: boardId, owner_id: user.id, title });
+  // Ignore duplicate key (23505) — means ownership is already registered
+  if (error && error.code !== "23505") {
+    console.error("Failed to register document ownership:", error.message);
+  }
 }
 
 export async function renameDocument(boardId: string, title: string): Promise<string | null> {
@@ -104,13 +107,14 @@ export async function shareDocument(
   } = await supabase.auth.getUser();
   if (!user) return "Faça login para compartilhar.";
 
-  // Ensure the document exists in Supabase (the upsert is idempotent).
-  const { error: upsertErr } = await supabase
+  // Ensure the document exists in Supabase (insert if not exists).
+  const { error: insertErr } = await supabase
     .from("documents")
-    .upsert({ id: boardId, owner_id: user.id, title: boardTitle ?? "Board" }, { onConflict: "id" });
-  if (upsertErr) {
-    console.error("shareDocument: documents upsert failed:", upsertErr.message);
-    return `Erro ao registrar board: ${upsertErr.message}`;
+    .insert({ id: boardId, owner_id: user.id, title: boardTitle ?? "Board" });
+  // Ignore duplicate key (23505) — document already registered
+  if (insertErr && insertErr.code !== "23505") {
+    console.error("shareDocument: documents insert failed:", insertErr.message);
+    return `Erro ao registrar board: ${insertErr.message}`;
   }
 
   const { error } = await supabase
