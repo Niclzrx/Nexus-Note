@@ -146,6 +146,40 @@ export async function removeShare(shareId: string): Promise<string | null> {
   return null;
 }
 
+export interface SharedBoard {
+  id: string;
+  title: string;
+  owner_username: string;
+  permission: SharePermission;
+}
+
+export async function listSharedBoards(): Promise<SharedBoard[]> {
+  const supabase = createSupabaseBrowserClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from("document_shares")
+    .select("document_id, permission, documents(id, title), profiles!document_shares_user_id_fkey(username)")
+    .eq("user_id", user.id);
+
+  if (error || !data) {
+    console.error("listSharedBoards failed:", error?.message ?? "Unknown error");
+    return [];
+  }
+
+  return data
+    .filter((row) => row.documents)
+    .map((row) => ({
+      id: row.document_id,
+      title: (row.documents as unknown as { title: string }).title,
+      owner_username: (row.profiles as unknown as { username: string } | null)?.username ?? "?",
+      permission: row.permission as SharePermission,
+    }));
+}
+
 export interface DocumentCounts {
   owned: number;
   sharedWithMe: number;
