@@ -154,10 +154,19 @@ create table if not exists public.board_presence (
 
 create index if not exists board_presence_document_id_idx on public.board_presence (document_id);
 
--- Enable Realtime
+-- Enable Realtime (ignore if already added)
 
-alter publication supabase_realtime add table public.board_content;
-alter publication supabase_realtime add table public.board_presence;
+DO $$
+BEGIN
+  alter publication supabase_realtime add table public.board_content;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  alter publication supabase_realtime add table public.board_presence;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ============================================================================
 -- RLS for board_content

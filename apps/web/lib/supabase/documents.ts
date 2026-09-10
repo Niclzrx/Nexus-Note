@@ -30,30 +30,47 @@ export async function registerDocumentOwnership(boardId: string, title: string):
   if (error) console.error("Failed to register document ownership:", error.message);
 }
 
-export async function renameDocument(boardId: string, title: string): Promise<void> {
+export async function renameDocument(boardId: string, title: string): Promise<string | null> {
   const supabase = createSupabaseBrowserClient();
-  await supabase.from("documents").update({ title }).eq("id", boardId);
+  const { error } = await supabase.from("documents").update({ title }).eq("id", boardId);
+  if (error) {
+    console.error("Failed to rename document:", error.message);
+    return error.message;
+  }
+  return null;
 }
 
-export async function deleteDocumentOwnership(boardId: string): Promise<void> {
+export async function deleteDocumentOwnership(boardId: string): Promise<string | null> {
   const supabase = createSupabaseBrowserClient();
-  await supabase.from("documents").delete().eq("id", boardId);
+  const { error } = await supabase.from("documents").delete().eq("id", boardId);
+  if (error) {
+    console.error("Failed to delete document ownership:", error.message);
+    return error.message;
+  }
+  return null;
 }
 
-export async function listSharesForDocument(boardId: string): Promise<ShareRow[]> {
+export async function listSharesForDocument(boardId: string): Promise<{ rows: ShareRow[]; error: string | null }> {
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("document_shares")
     .select("id, document_id, user_id, permission, profiles(username)")
     .eq("document_id", boardId);
-  if (error || !data) return [];
-  return data.map((row) => ({
-    id: row.id as string,
-    document_id: row.document_id as string,
-    user_id: row.user_id as string,
-    permission: row.permission as SharePermission,
-    username: (row.profiles as unknown as { username: string } | null)?.username ?? "?",
-  }));
+  if (error || !data) {
+    const msg = error?.message ?? "Unknown error loading shares";
+    console.error("listSharesForDocument failed:", msg);
+    return { rows: [], error: msg };
+  }
+  return {
+    rows: data.map((row) => ({
+      id: row.id as string,
+      document_id: row.document_id as string,
+      user_id: row.user_id as string,
+      permission: row.permission as SharePermission,
+      username: (row.profiles as unknown as { username: string } | null)?.username ?? "?",
+    })),
+    error: null,
+  };
 }
 
 export async function searchUsersForSharing(
@@ -68,7 +85,10 @@ export async function searchUsersForSharing(
     .ilike("username", `%${query.trim()}%`)
     .neq("id", excludeUserId)
     .limit(6);
-  if (error || !data) return [];
+  if (error || !data) {
+    console.error("searchUsersForSharing failed:", error?.message ?? "Unknown error");
+    return [];
+  }
   return data;
 }
 
@@ -88,23 +108,42 @@ export async function shareDocument(
   const { error: upsertErr } = await supabase
     .from("documents")
     .upsert({ id: boardId, owner_id: user.id, title: boardTitle ?? "Board" }, { onConflict: "id" });
-  if (upsertErr) return `Erro ao registrar board: ${upsertErr.message}`;
+  if (upsertErr) {
+    console.error("shareDocument: documents upsert failed:", upsertErr.message);
+    return `Erro ao registrar board: ${upsertErr.message}`;
+  }
 
   const { error } = await supabase
     .from("document_shares")
     .upsert({ document_id: boardId, user_id: targetUserId, permission }, { onConflict: "document_id,user_id" });
-  if (error) return `Não foi possível compartilhar: ${error.message}`;
+  if (error) {
+    console.error("shareDocument: document_shares upsert failed:", error.message);
+    return `Não foi possível compartilhar: ${error.message}`;
+  }
   return null;
 }
 
-export async function updateSharePermission(shareId: string, permission: SharePermission): Promise<void> {
+export async function updateSharePermission(
+  shareId: string,
+  permission: SharePermission,
+): Promise<string | null> {
   const supabase = createSupabaseBrowserClient();
-  await supabase.from("document_shares").update({ permission }).eq("id", shareId);
+  const { error } = await supabase.from("document_shares").update({ permission }).eq("id", shareId);
+  if (error) {
+    console.error("updateSharePermission failed:", error.message);
+    return error.message;
+  }
+  return null;
 }
 
-export async function removeShare(shareId: string): Promise<void> {
+export async function removeShare(shareId: string): Promise<string | null> {
   const supabase = createSupabaseBrowserClient();
-  await supabase.from("document_shares").delete().eq("id", shareId);
+  const { error } = await supabase.from("document_shares").delete().eq("id", shareId);
+  if (error) {
+    console.error("removeShare failed:", error.message);
+    return error.message;
+  }
+  return null;
 }
 
 export interface DocumentCounts {

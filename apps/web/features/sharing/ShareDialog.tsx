@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Panel } from "@nexus/design-system";
-import { Search, X, UserPlus } from "lucide-react";
+import { Search, X, UserPlus, Loader2 } from "lucide-react";
 import { useAuth } from "../../hooks/use-auth";
 import {
   listSharesForDocument,
@@ -26,20 +26,27 @@ export function ShareDialog({
   open: boolean;
   onClose: () => void;
 }) {
-  const { profile } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
   const [shares, setShares] = useState<ShareRow[]>([]);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<{ id: string; username: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [loadingShares, setLoadingShares] = useState(false);
 
   async function refreshShares() {
-    const rows = await listSharesForDocument(boardId);
+    setLoadingShares(true);
+    const { rows, error: err } = await listSharesForDocument(boardId);
+    if (err) setError(err);
     setShares(rows);
+    setLoadingShares(false);
   }
 
   useEffect(() => {
-    if (open) void refreshShares();
+    if (open) {
+      setError(null);
+      void refreshShares();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, boardId]);
 
@@ -95,15 +102,22 @@ export function ShareDialog({
               </div>
 
               <div className="p-4">
-                <div className="flex items-center gap-2 rounded-md border border-border bg-surface-elevated px-2.5 py-1.5">
-                  <Search className="h-3.5 w-3.5 text-text-faint" />
-                  <input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Buscar por usuário…"
-                    className="w-full bg-transparent text-sm text-text outline-none placeholder:text-text-faint"
-                  />
-                </div>
+                {authLoading ? (
+                  <div className="flex items-center gap-2 rounded-md border border-border bg-surface-elevated px-2.5 py-1.5">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-text-faint" />
+                    <span className="text-xs text-text-faint">Carregando...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 rounded-md border border-border bg-surface-elevated px-2.5 py-1.5">
+                    <Search className="h-3.5 w-3.5 text-text-faint" />
+                    <input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Buscar por usuário…"
+                      className="w-full bg-transparent text-sm text-text outline-none placeholder:text-text-faint"
+                    />
+                  </div>
+                )}
 
                 {results.length > 0 ? (
                   <div className="mt-2 space-y-1">
@@ -139,7 +153,12 @@ export function ShareDialog({
                   <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-text-faint">
                     Com acesso
                   </p>
-                  {shares.length === 0 ? (
+                  {loadingShares ? (
+                    <div className="flex items-center gap-2 py-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-text-faint" />
+                      <span className="text-xs text-text-faint">Carregando...</span>
+                    </div>
+                  ) : shares.length === 0 ? (
                     <p className="py-2 text-xs text-text-faint">Só você tem acesso a este board.</p>
                   ) : (
                     <div className="space-y-1">
@@ -150,8 +169,10 @@ export function ShareDialog({
                             <select
                               value={s.permission}
                               onChange={async (e) => {
-                                await updateSharePermission(s.id, e.target.value as SharePermission);
-                                await refreshShares();
+                                setError(null);
+                                const err = await updateSharePermission(s.id, e.target.value as SharePermission);
+                                if (err) setError(err);
+                                else await refreshShares();
                               }}
                               className="rounded-sm border border-border bg-surface-elevated px-1.5 py-0.5 text-[11px] text-text-muted outline-none"
                             >
@@ -161,8 +182,10 @@ export function ShareDialog({
                             <button
                               type="button"
                               onClick={async () => {
-                                await removeShare(s.id);
-                                await refreshShares();
+                                setError(null);
+                                const err = await removeShare(s.id);
+                                if (err) setError(err);
+                                else await refreshShares();
                               }}
                               aria-label={`Remover acesso de ${s.username}`}
                               className="text-text-faint hover:text-error"
