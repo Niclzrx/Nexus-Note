@@ -327,7 +327,7 @@ function MediaError() {
 }
 
 function ImageContent({ element }: { element: NexusElement<"image"> }) {
-  const { url, loading, error } = useAssetUrl(element.data.assetId);
+  const { url, loading, error } = useAssetUrl(element.data.assetId, element.data.publicUrl);
   return (
     <div className="h-full w-full overflow-hidden rounded-b-lg bg-canvas-bg">
       {loading ? (
@@ -348,7 +348,7 @@ function ImageContent({ element }: { element: NexusElement<"image"> }) {
 }
 
 function VideoContent({ element }: { element: NexusElement<"video"> }) {
-  const { url, loading, error } = useAssetUrl(element.data.assetId);
+  const { url, loading, error } = useAssetUrl(element.data.assetId, element.data.publicUrl);
   return (
     <div
       className="flex h-full w-full items-center justify-center overflow-hidden rounded-b-lg bg-black"
@@ -366,7 +366,7 @@ function VideoContent({ element }: { element: NexusElement<"video"> }) {
 }
 
 function AudioContent({ element }: { element: NexusElement<"audio"> }) {
-  const { url, loading, error } = useAssetUrl(element.data.assetId);
+  const { url, loading, error } = useAssetUrl(element.data.assetId, element.data.publicUrl);
   return (
     <div className="flex h-full w-full items-center justify-center p-3" onPointerDown={stop}>
       {loading ? (
@@ -381,7 +381,7 @@ function AudioContent({ element }: { element: NexusElement<"audio"> }) {
 }
 
 function PdfContent({ element }: { element: NexusElement<"pdf"> }) {
-  const { url, loading, error } = useAssetUrl(element.data.assetId);
+  const { url, loading, error } = useAssetUrl(element.data.assetId, element.data.publicUrl);
   return (
     <FileCard
       icon={FileText}
@@ -395,7 +395,7 @@ function PdfContent({ element }: { element: NexusElement<"pdf"> }) {
 }
 
 function FileContent({ element }: { element: NexusElement<"file"> }) {
-  const { url, loading, error } = useAssetUrl(element.data.assetId);
+  const { url, loading, error } = useAssetUrl(element.data.assetId, element.data.publicUrl);
   return (
     <FileCard
       icon={FileText}

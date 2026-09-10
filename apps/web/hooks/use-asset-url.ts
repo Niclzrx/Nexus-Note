@@ -5,10 +5,12 @@ import { storageService } from "@nexus/storage";
  * Loads the Blob for `assetId` from IndexedDB and exposes it as an object
  * URL for <img>/<video>/<audio>/<a> to consume. Revokes the URL on unmount
  * or when `assetId` changes, so we don't leak memory as the user pans past
- * dozens of media nodes. No cross-node caching yet — see docs/roadmap.md
- * (Fase 5) for the plan to add one once it's needed at scale.
+ * dozens of media nodes.
+ *
+ * If the local blob is not found (e.g. viewer on a different device),
+ * falls back to `publicUrl` from Supabase Storage.
  */
-export function useAssetUrl(assetId: string | undefined) {
+export function useAssetUrl(assetId: string | undefined, publicUrl?: string | null) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(Boolean(assetId));
   const [error, setError] = useState(false);
@@ -28,19 +30,31 @@ export function useAssetUrl(assetId: string | undefined) {
       .getAssetBlob(assetId)
       .then((blob) => {
         if (cancelled) return;
-        if (!blob) {
-          setError(true);
+        if (blob) {
+          objectUrl = URL.createObjectURL(blob);
+          setUrl(objectUrl);
           setLoading(false);
           return;
         }
-        objectUrl = URL.createObjectURL(blob);
-        setUrl(objectUrl);
+        // Local blob not found — fall back to Supabase Storage public URL
+        if (publicUrl) {
+          setUrl(publicUrl);
+          setLoading(false);
+          return;
+        }
+        setError(true);
         setLoading(false);
       })
       .catch(() => {
         if (!cancelled) {
-          setError(true);
-          setLoading(false);
+          // Try publicUrl as fallback on error too
+          if (publicUrl) {
+            setUrl(publicUrl);
+            setLoading(false);
+          } else {
+            setError(true);
+            setLoading(false);
+          }
         }
       });
 
@@ -48,7 +62,7 @@ export function useAssetUrl(assetId: string | undefined) {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [assetId]);
+  }, [assetId, publicUrl]);
 
   return { url, loading, error };
 }

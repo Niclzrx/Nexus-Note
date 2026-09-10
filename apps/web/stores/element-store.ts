@@ -8,6 +8,7 @@ import { useWorkspaceStore } from "./workspace-store";
 import { classifyFile, readImageDimensions, validateFile } from "../lib/file-classification";
 import { pushSingleChange, pushSingleDelete } from "../lib/supabase/sync";
 import { useSyncStore } from "./sync-store";
+import { createSupabaseBrowserClient } from "../lib/supabase/client";
 
 interface ElementState {
   boardId: string | null;
@@ -299,6 +300,24 @@ export const useElementStore = create<ElementState>((set, get) => ({
     };
     await storageService.assets.put(asset);
 
+    // Upload to Supabase Storage for cross-device access
+    let publicUrl: string | null = null;
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const filePath = `${boardId}/${assetId}`;
+      const { error: uploadError } = await supabase.storage
+        .from("board-assets")
+        .upload(filePath, file, { contentType: file.type, upsert: true });
+      if (uploadError) {
+        console.error("Storage upload failed:", uploadError.message);
+      } else {
+        const { data: urlData } = supabase.storage.from("board-assets").getPublicUrl(filePath);
+        publicUrl = urlData?.publicUrl ?? null;
+      }
+    } catch (err) {
+      console.error("Storage upload error:", err);
+    }
+
     // Bail if the user navigated to a different board while this file was
     // still being read/stored (real risk for large videos) — otherwise
     // we'd insert an element tagged with the OLD board's id into whatever
@@ -315,12 +334,12 @@ export const useElementStore = create<ElementState>((set, get) => ({
 
     const data =
       elementType === "pdf"
-        ? { assetId, fileName: file.name }
+        ? { assetId, fileName: file.name, publicUrl }
         : elementType === "file"
-          ? { assetId, fileName: file.name, fileType: file.type, fileSize: file.size }
+          ? { assetId, fileName: file.name, fileType: file.type, fileSize: file.size, publicUrl }
           : elementType === "image"
-            ? { assetId, objectFit: "cover" as const }
-            : { assetId };
+            ? { assetId, objectFit: "cover" as const, publicUrl }
+            : { assetId, publicUrl };
 
     const element: AnyElement = {
       id: createId("el"),
@@ -583,6 +602,15 @@ export const useElementStore = create<ElementState>((set, get) => ({
     for (const el of removed) {
       void storageService.elements.delete(el.id);
       syncDelete(boardId, "element", el.id);
+      // Clean up Supabase Storage blob for media elements
+      if ("assetId" in el.data && el.data.assetId) {
+        try {
+          const supabase = createSupabaseBrowserClient();
+          void supabase.storage.from("board-assets").remove([`${boardId}/${el.data.assetId}`]);
+        } catch {
+          // Best-effort cleanup — don't block the delete
+        }
+      }
       void storageService.trash.put({
         id: createId("trash"),
         boardId,

@@ -53,21 +53,25 @@ export interface ImageData {
   assetId: string;
   alt?: string;
   objectFit: "cover" | "contain";
+  publicUrl?: string | null;
 }
 
 export interface VideoData {
   assetId: string;
   posterAssetId?: string;
+  publicUrl?: string | null;
 }
 
 export interface AudioData {
   assetId: string;
+  publicUrl?: string | null;
 }
 
 export interface PdfData {
   assetId: string;
   fileName: string;
   pageCount?: number;
+  publicUrl?: string | null;
 }
 
 export interface LinkData {
@@ -118,6 +122,7 @@ export interface FileData {
   fileName: string;
   fileType: string;
   fileSize: number;
+  publicUrl?: string | null;
 }
 
 export interface LocationData {
