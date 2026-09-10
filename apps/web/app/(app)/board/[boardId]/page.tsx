@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import type { Board } from "@nexus/types";
-import { DEFAULT_BOARD_SETTINGS, DEFAULT_VIEWPORT } from "@nexus/types";
 import { storageService } from "@nexus/storage";
 import { Canvas } from "../../../../features/canvas/Canvas";
 import { BoardNavbar } from "../../../../features/shell/BoardNavbar";
@@ -12,8 +11,6 @@ import { useElementStore } from "../../../../stores/element-store";
 import { useSelectionStore } from "../../../../stores/selection-store";
 import { useWorkspaceStore } from "../../../../stores/workspace-store";
 import { useUiStore } from "../../../../stores/ui-store";
-import { useSyncStore } from "../../../../stores/sync-store";
-import { getSharedBoardMeta } from "../../../../lib/supabase/documents";
 
 export default function BoardPage() {
   const params = useParams<{ boardId: string }>();
@@ -38,53 +35,15 @@ export default function BoardPage() {
     storageService.boards.get(boardId).then(async (record) => {
       if (cancelled) return;
 
-      // Found locally — owner's board, enable sync
-      if (record) {
-        useSyncStore.setState({ isShared: true, role: "owner" });
-        setBoard(record);
-        loadViewport(record.id, record.viewport, record.settings.gridEnabled);
-        await loadBoardElements(record.id);
-        void touchLastOpened(record.id);
-        if (!cancelled) setSaveStatus("saved");
-        return;
-      }
-
-      // Not found locally — check if it's a shared board
-      const sharedMeta = await getSharedBoardMeta(boardId);
-      if (cancelled) return;
-
-      if (!sharedMeta) {
+      if (!record) {
         setNotFound(true);
         return;
       }
 
-      // Create a minimal local board record for the shared board
-      const now = Date.now();
-      const localBoard: Board = {
-        id: sharedMeta.id,
-        workspaceId: "shared",
-        name: sharedMeta.title,
-        isFavorite: false,
-        isTrashed: false,
-        lastOpenedAt: now,
-        viewport: DEFAULT_VIEWPORT,
-        settings: DEFAULT_BOARD_SETTINGS,
-        elementCount: 0,
-        createdAt: now,
-        updatedAt: now,
-        version: 1,
-      };
-
-      // Persist to local IndexedDB so subsequent visits don't hit Supabase again
-      await storageService.boards.put(localBoard);
-
-      // Mark as shared with the user's permission role
-      useSyncStore.setState({ isShared: true, role: sharedMeta.permission });
-
-      setBoard(localBoard);
-      loadViewport(localBoard.id, localBoard.viewport, localBoard.settings.gridEnabled);
-      await loadBoardElements(localBoard.id);
-      void touchLastOpened(localBoard.id);
+      setBoard(record);
+      loadViewport(record.id, record.viewport, record.settings.gridEnabled);
+      await loadBoardElements(record.id);
+      void touchLastOpened(record.id);
       if (!cancelled) setSaveStatus("saved");
     });
 

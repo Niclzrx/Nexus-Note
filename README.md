@@ -103,3 +103,42 @@ nexus-note/
 ```
 
 Veja `docs/architecture.md` para o raciocínio por trás de cada decisão.
+
+---
+
+## Reativar compartilhamento e sync
+
+O compartilhamento está **desativado** mas o código completo permanece no
+codebase (comentado). Para reativar:
+
+### 1. Configurar Supabase
+
+1. Crie um projeto em [supabase.com](https://supabase.com)
+2. No SQL Editor, rode o conteúdo de:
+   - `supabase/migrations/0001_auth_and_sharing.sql`
+   - `supabase/migrations/0002_board_content_and_realtime.sql`
+3. Crie o bucket `board-assets` no Storage:
+   - Nome: `board-assets`
+   - Public: **true**
+   - File size limit: `52428800` (50 MB)
+4. Rode `supabase/migrations/0003_storage_policies.sql`
+5. Copie Project URL, anon key e service role key em *Project Settings → API*
+6. Crie `apps/web/.env.local` com `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY`
+
+### 2. Descomentar código nos arquivos
+
+| Arquivo | O que descomentar |
+|---------|-------------------|
+| `apps/web/features/canvas/Canvas.tsx` | Imports de `useRealtime`, `usePresence`, `RemoteCursors`; chamadas dos hooks; `broadcastCursor` no `onPointerMove`; componente `<RemoteCursors>` |
+| `apps/web/features/shell/BoardNavbar.tsx` | Restaurar versão anterior — botão Compartilhar, `registerDocumentOwnership`, `renameDocument`, `deleteDocumentOwnership`, indicador de sync |
+| `apps/web/app/(app)/board/[boardId]/page.tsx` | Restaurar lógica de `getSharedBoardMeta` e `useSyncStore.setState({ isShared: true, role })` |
+| `apps/web/app/(app)/dashboard/page.tsx` | Restaurar `syncBoardsFromSupabase`, `listSharedBoards` e seção "Compartilhados comigo" |
+
+### 3. Verificar
+
+```bash
+pnpm build
+```
+
+O app deve compilar sem erros e o botão "Compartilhar" deve aparecer no
+BoardNavbar ao abrir um board.

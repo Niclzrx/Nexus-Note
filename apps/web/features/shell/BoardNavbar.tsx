@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -14,18 +14,12 @@ import {
   Trash2,
   Undo2,
   Redo2,
-  Users2,
-  Wifi,
-  WifiOff,
 } from "lucide-react";
-import { IconButton, Button } from "@nexus/design-system";
+import { IconButton } from "@nexus/design-system";
 import type { Board } from "@nexus/types";
 import { useUiStore, type SaveStatus } from "../../stores/ui-store";
-import { useSyncStore } from "../../stores/sync-store";
 import { useWorkspaceStore } from "../../stores/workspace-store";
 import { useHistoryStore } from "../../stores/history-store";
-import { registerDocumentOwnership, renameDocument, deleteDocumentOwnership } from "../../lib/supabase/documents";
-import { ShareDialog } from "../sharing/ShareDialog";
 
 const statusConfig: Record<SaveStatus, { icon: typeof Cloud; label: string; className: string }> = {
   idle: { icon: Cloud, label: "Salvo", className: "text-text-faint" },
@@ -38,7 +32,6 @@ const statusConfig: Record<SaveStatus, { icon: typeof Cloud; label: string; clas
 export function BoardNavbar({ board }: { board: Board }) {
   const router = useRouter();
   const [name, setName] = useState(board.name);
-  const [shareOpen, setShareOpen] = useState(false);
   const renameBoard = useWorkspaceStore((s) => s.renameBoard);
   const trashBoard = useWorkspaceStore((s) => s.trashBoard);
   const saveStatus = useUiStore((s) => s.saveStatus);
@@ -47,27 +40,9 @@ export function BoardNavbar({ board }: { board: Board }) {
   const toggleMobileSidebar = useUiStore((s) => s.toggleMobileSidebar);
   const status = statusConfig[saveStatus];
 
-  const isShared = useSyncStore((s) => s.isShared);
-  const role = useSyncStore((s) => s.role);
-  const syncStatus = useSyncStore((s) => s.status);
-  const remoteUsers = useSyncStore((s) => s.remoteUsers);
-  const lastSyncedAt = useSyncStore((s) => s.lastSyncedAt);
-
-  const isOwner = role === "owner";
-  const isReadonly = role === "viewer";
-
-  // Only register ownership for the actual owner
-  useEffect(() => {
-    if (isOwner) {
-      void registerDocumentOwnership(board.id, board.name);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [board.id, isOwner]);
-
   async function handleDeleteBoard() {
     if (!window.confirm(`Mover "${board.name}" para a lixeira? Você pode restaurar depois.`)) return;
     await trashBoard(board.id);
-    void deleteDocumentOwnership(board.id);
     router.push("/dashboard");
   }
 
@@ -84,27 +59,16 @@ export function BoardNavbar({ board }: { board: Board }) {
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          readOnly={isReadonly}
           onBlur={() => {
-            if (isReadonly) return;
             const trimmed = name.trim();
             if (!trimmed) return;
             renameBoard(board.id, trimmed);
-            void renameDocument(board.id, trimmed);
           }}
           className="min-w-0 flex-1 truncate bg-transparent font-display text-sm font-medium text-text outline-none"
         />
       </div>
 
       <div className="flex items-center gap-1">
-        {isOwner && (
-          <Button variant="secondary" size="sm" onClick={() => setShareOpen(true)}>
-            <Users2 className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Compartilhar</span>
-          </Button>
-        )}
-
-        <div className="mx-1.5 h-5 w-px bg-border" />
-
         <IconButton label="Desfazer (Ctrl+Z)" size="sm" onClick={() => useHistoryStore.getState().undo()}>
           <Undo2 />
         </IconButton>
@@ -119,19 +83,6 @@ export function BoardNavbar({ board }: { board: Board }) {
           <span className="hidden sm:inline">{status.label}</span>
         </span>
 
-        {isShared && (
-          <span className={`flex items-center gap-1.5 px-1.5 text-xs ${syncStatus === "syncing" ? "text-text-muted animate-pulse" : "text-success"}`}>
-            {syncStatus === "syncing" ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Wifi className="h-3.5 w-3.5" />
-            )}
-            <span className="hidden sm:inline">
-              {remoteUsers.size > 0 ? `${remoteUsers.size} online` : "Sync"}
-            </span>
-          </span>
-        )}
-
         <IconButton
           label="Alternar tema"
           size="sm"
@@ -140,14 +91,10 @@ export function BoardNavbar({ board }: { board: Board }) {
           {resolvedTheme === "dark" ? <Sun /> : <Moon />}
         </IconButton>
 
-        {isOwner && (
-          <IconButton label="Excluir board" size="sm" onClick={handleDeleteBoard}>
-            <Trash2 />
-          </IconButton>
-        )}
+        <IconButton label="Excluir board" size="sm" onClick={handleDeleteBoard}>
+          <Trash2 />
+        </IconButton>
       </div>
-
-      <ShareDialog boardId={board.id} boardTitle={board.name} open={shareOpen} onClose={() => setShareOpen(false)} />
     </header>
   );
 }

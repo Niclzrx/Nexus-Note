@@ -11,8 +11,9 @@ import { useUiStore } from "../../stores/ui-store";
 import { useSyncStore } from "../../stores/sync-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
 import { useElementSize } from "../../hooks/use-element-size";
-import { useRealtime } from "../../hooks/use-realtime";
-import { usePresence } from "../../hooks/use-presence";
+// [REVIEW] Sync: re-enable when sharing is activated
+// import { useRealtime } from "../../hooks/use-realtime";
+// import { usePresence } from "../../hooks/use-presence";
 import { useAuth } from "../../hooks/use-auth";
 import { CanvasBackground } from "./CanvasBackground";
 import { NodeView } from "./NodeView";
@@ -20,7 +21,8 @@ import { ConnectionsLayer } from "./ConnectionsLayer";
 import { FloatingToolbar } from "./FloatingToolbar";
 import { PropertyPanel } from "./PropertyPanel";
 import { Minimap } from "./Minimap";
-import { RemoteCursors } from "./RemoteCursors";
+// [REVIEW] Sync: re-enable when sharing is activated
+// import { RemoteCursors } from "./RemoteCursors";
 
 type DragMode = "none" | "pan" | "marquee" | "move" | "resize" | "connect" | "pinch";
 
@@ -113,12 +115,14 @@ export function Canvas({ board }: { board: Board }) {
     [elementList, selectedElementIds],
   );
 
-  const isShared = useSyncStore((s) => s.isShared);
-  const role = useSyncStore((s) => s.role);
-  const readonly = role === "viewer";
+  // [REVIEW] Sync: re-enable when sharing is activated
+  // const isShared = useSyncStore((s) => s.isShared);
+  // const role = useSyncStore((s) => s.role);
+  // const readonly = role === "viewer";
+  const readonly = false; // Sharing disabled — always allow edits
   const { profile } = useAuth();
-  useRealtime(board.id, isShared);
-  const { broadcastCursor } = usePresence(board.id, profile?.id ?? "", profile?.username ?? "", isShared);
+  // useRealtime(board.id, isShared);
+  // const { broadcastCursor } = usePresence(board.id, profile?.id ?? "", profile?.username ?? "", isShared);
 
   // ---- Fase 5: viewport-culled rendering ----
   // Only nodes whose bounds intersect the (padded) visible world rect get
@@ -397,11 +401,12 @@ export function Canvas({ board }: { board: Board }) {
     (e: React.PointerEvent) => {
       const screenPoint = toContainerPoint(e.clientX, e.clientY);
 
+      // [REVIEW] Sync: re-enable when sharing is activated
       // Broadcast cursor position to remote users
-      if (isShared && profile) {
-        const worldPoint = screenToWorld(screenPoint, viewport);
-        broadcastCursor(worldPoint.x, worldPoint.y);
-      }
+      // if (isShared && profile) {
+      //   const worldPoint = screenToWorld(screenPoint, viewport);
+      //   broadcastCursor(worldPoint.x, worldPoint.y);
+      // }
 
       if (dragMode === "pan") {
         const dx = screenPoint.x - lastScreenPoint.current.x;
@@ -443,7 +448,7 @@ export function Canvas({ board }: { board: Board }) {
       // (they read directly from the native event's coordinates); nothing
       // to do here.
     },
-    [dragMode, pan, moveElements, resizeElement, toContainerPoint, viewport, isShared, profile, broadcastCursor],
+    [dragMode, pan, moveElements, resizeElement, toContainerPoint, viewport],
   );
 
   const onPointerUp = useCallback(
@@ -622,7 +627,8 @@ export function Canvas({ board }: { board: Board }) {
           onSelectConnection={selectConnection}
           pending={pendingConnection}
         />
-        <RemoteCursors zoom={viewport.zoom} />
+        {/* [REVIEW] Sync: re-enable when sharing is activated */}
+        {/* <RemoteCursors zoom={viewport.zoom} /> */}
         {visibleElements.map((el) => (
           <NodeView
             key={el.id}

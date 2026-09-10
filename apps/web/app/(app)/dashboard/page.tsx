@@ -1,46 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Star, Clock, LayoutGrid, Menu, Users } from "lucide-react";
+import { Plus, Star, Clock, LayoutGrid, Menu } from "lucide-react";
 import { Button, IconButton } from "@nexus/design-system";
 import type { Board } from "@nexus/types";
-import { DEFAULT_BOARD_SETTINGS, DEFAULT_VIEWPORT } from "@nexus/types";
-import { storageService } from "@nexus/storage";
 import { useWorkspaceStore } from "../../../stores/workspace-store";
 import { useUiStore } from "../../../stores/ui-store";
-import { listSharedBoards, listOwnedBoards, type SharedBoard } from "../../../lib/supabase/documents";
-
-async function syncBoardsFromSupabase() {
-  const remoteBoards = await listOwnedBoards();
-  const localBoards = useWorkspaceStore.getState().boards;
-  const localIds = new Set(localBoards.map((b) => b.id));
-  const now = Date.now();
-
-  for (const remote of remoteBoards) {
-    if (!localIds.has(remote.id)) {
-      // Board exists in Supabase but not locally — create local record
-      const localBoard: Board = {
-        id: remote.id,
-        workspaceId: "default",
-        name: remote.title,
-        isFavorite: false,
-        isTrashed: false,
-        lastOpenedAt: now,
-        viewport: DEFAULT_VIEWPORT,
-        settings: DEFAULT_BOARD_SETTINGS,
-        elementCount: 0,
-        createdAt: now,
-        updatedAt: now,
-        version: 1,
-      };
-      await storageService.boards.put(localBoard);
-    }
-  }
-
-  // Reload boards from IndexedDB
-  useWorkspaceStore.getState().refreshBoards();
-}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -48,13 +14,6 @@ export default function DashboardPage() {
   const boards = useWorkspaceStore((s) => s.boards);
   const createBoard = useWorkspaceStore((s) => s.createBoard);
   const toggleMobileSidebar = useUiStore((s) => s.toggleMobileSidebar);
-  const [sharedBoards, setSharedBoards] = useState<SharedBoard[]>([]);
-
-  useEffect(() => {
-    void listSharedBoards().then(setSharedBoards);
-    // Fetch boards from Supabase and merge with local IndexedDB
-    void syncBoardsFromSupabase();
-  }, []);
 
   const active = useMemo(() => boards.filter((b) => !b.isTrashed), [boards]);
   const recent = useMemo(
@@ -96,10 +55,6 @@ export default function DashboardPage() {
           <BoardGrid title="Favoritos" icon={Star} boards={favorites} onRename={renameBoard} />
         ) : null}
         <BoardGrid title="Recentes" icon={Clock} boards={recent} onRename={renameBoard} />
-
-        {sharedBoards.length > 0 ? (
-          <SharedBoardsGrid boards={sharedBoards} onOpen={(id) => router.push(`/board/${id}`)} />
-        ) : null}
 
         {active.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center">
@@ -187,37 +142,5 @@ function BoardCard({ board, onRename, onOpen }: { board: Board; onRename: (board
         <p className="text-[11px] text-text-faint">{board.elementCount} elementos</p>
       </div>
     </button>
-  );
-}
-
-function SharedBoardsGrid({ boards, onOpen }: { boards: SharedBoard[]; onOpen: (id: string) => void }) {
-  return (
-    <section className="mb-8">
-      <h2 className="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-text-faint">
-        <Users className="h-3.5 w-3.5" /> Compartilhados comigo
-      </h2>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {boards.map((board) => (
-          <button
-            key={board.id}
-            onClick={() => onOpen(board.id)}
-            className="group flex aspect-[4/3] flex-col justify-between rounded-lg border border-border bg-surface p-3.5 text-left transition-colors hover:border-border-strong hover:bg-surface-elevated"
-          >
-            <div className="flex-1 rounded-md bg-canvas-bg bg-[radial-gradient(circle,rgb(var(--color-canvas-dot)/0.4)_1px,transparent_1px)] bg-[length:14px_14px]" />
-            <div className="mt-2">
-              <p className="truncate font-display text-sm font-medium text-text group-hover:text-signal">
-                {board.title}
-              </p>
-              <div className="flex items-center gap-1.5">
-                <p className="text-[11px] text-text-faint">{board.owner_username}</p>
-                <span className="rounded-full bg-signal/15 px-1.5 py-0.5 text-[10px] text-signal">
-                  {board.permission === "editor" ? "Editor" : "Viewer"}
-                </span>
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
-    </section>
   );
 }
