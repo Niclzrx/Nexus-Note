@@ -153,6 +153,34 @@ export interface SharedBoard {
   permission: SharePermission;
 }
 
+export async function getSharedBoardMeta(
+  boardId: string,
+): Promise<{ id: string; title: string; permission: SharePermission } | null> {
+  const supabase = createSupabaseBrowserClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from("document_shares")
+    .select("document_id, permission, documents(id, title)")
+    .eq("document_id", boardId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (error || !data || !data.documents) {
+    console.error("getSharedBoardMeta failed:", error?.message ?? "Not found or not shared");
+    return null;
+  }
+
+  return {
+    id: data.document_id,
+    title: (data.documents as unknown as { title: string }).title,
+    permission: data.permission as SharePermission,
+  };
+}
+
 export async function listSharedBoards(): Promise<SharedBoard[]> {
   const supabase = createSupabaseBrowserClient();
   const {
