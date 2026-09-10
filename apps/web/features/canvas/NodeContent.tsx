@@ -12,6 +12,7 @@ import { createId } from "@nexus/storage";
 import { Download, FileText, MapPin, Plus, X } from "lucide-react";
 import { useAssetUrl } from "../../hooks/use-asset-url";
 import { formatBytes } from "../../lib/format";
+import { CodeEditor } from "./CodeEditor";
 
 interface NodeContentProps {
   element: AnyElement;
@@ -246,23 +247,12 @@ export function NodeContent({ element, onChange }: NodeContentProps) {
 
     case "code":
       return (
-        <div className="flex h-full flex-col p-2.5">
-          <input
-            value={element.data.language}
-            onChange={(e) => onChange({ language: e.target.value })}
-            onPointerDown={stop}
-            className="mb-1 w-24 bg-transparent font-mono text-[11px] uppercase tracking-wide text-text-faint outline-none"
-            placeholder="linguagem"
-          />
-          <textarea
-            value={element.data.content}
-            onChange={(e) => onChange({ content: e.target.value })}
-            onPointerDown={stop}
-            spellCheck={false}
-            className="nx-scroll h-full w-full resize-none bg-transparent font-mono text-xs leading-relaxed text-text outline-none placeholder:text-text-faint"
-            placeholder="// código"
-          />
-        </div>
+        <CodeEditor
+          language={element.data.language}
+          content={element.data.content}
+          onLanguageChange={(language) => onChange({ language })}
+          onContentChange={(content) => onChange({ content })}
+        />
       );
 
     case "image":
