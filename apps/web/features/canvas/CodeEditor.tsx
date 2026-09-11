@@ -391,7 +391,10 @@ export function CodeEditor({
         )}
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-hidden rounded-md bg-[#282a36]">
+      <div
+        className="relative min-h-0 flex-1 overflow-hidden rounded-md bg-[#282a36]"
+        onWheel={(e) => e.stopPropagation()}
+      >
         <Highlight
           theme={draculaTheme}
           code={content || " "}
