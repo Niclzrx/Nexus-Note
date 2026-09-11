@@ -359,6 +359,7 @@ export function CodeEditor({
             setQuery("");
           }}
           onPointerDown={(e) => e.stopPropagation()}
+          onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleInputKeyDown}
           onClick={() => {
             if (!open) {
@@ -412,7 +413,7 @@ export function CodeEditor({
           {({ tokens, getLineProps, getTokenProps }) => (
             <pre
               ref={preRef}
-              className="nx-scroll absolute inset-0 m-0 overflow-auto p-2.5 font-mono text-xs leading-relaxed"
+              className="nx-scroll absolute inset-0 m-0 overflow-auto overscroll-contain p-2.5 font-mono text-xs leading-relaxed"
               style={{ background: "transparent" }}
             >
               {tokens.map((line, i) => (
@@ -434,7 +435,7 @@ export function CodeEditor({
           onPointerDown={(e) => e.stopPropagation()}
           onScroll={handleScroll}
           spellCheck={false}
-          className="nx-scroll absolute inset-0 resize-none bg-transparent p-2.5 font-mono text-xs leading-relaxed text-transparent caret-white outline-none"
+          className="nx-scroll absolute inset-0 resize-none bg-transparent overscroll-contain p-2.5 font-mono text-xs leading-relaxed text-transparent caret-white outline-none"
           style={{ caretColor: "white" }}
           placeholder="// código"
         />
