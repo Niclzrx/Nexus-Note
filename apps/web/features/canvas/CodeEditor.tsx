@@ -255,6 +255,7 @@ export function CodeEditor({
   const preRef = useRef<HTMLPreElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const codeContainerRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -296,6 +297,14 @@ export function CodeEditor({
       pre.scrollTop = textarea.scrollTop;
       pre.scrollLeft = textarea.scrollLeft;
     }
+  }, []);
+
+  useEffect(() => {
+    const node = codeContainerRef.current;
+    if (!node) return;
+    const onWheel = (e: WheelEvent) => e.stopPropagation();
+    node.addEventListener("wheel", onWheel);
+    return () => node.removeEventListener("wheel", onWheel);
   }, []);
 
   useEffect(() => {
@@ -392,8 +401,8 @@ export function CodeEditor({
       </div>
 
       <div
+        ref={codeContainerRef}
         className="relative min-h-0 flex-1 overflow-hidden rounded-md bg-[#282a36]"
-        onWheel={(e) => e.stopPropagation()}
       >
         <Highlight
           theme={draculaTheme}
