@@ -338,7 +338,7 @@ export function CodeEditor({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="relative mb-1" ref={dropdownRef}>
+      <div className="relative shrink-0" ref={dropdownRef}>
         <input
           ref={inputRef}
           type="text"
@@ -357,7 +357,7 @@ export function CodeEditor({
               setQuery("");
             }
           }}
-          className="w-28 rounded bg-surface-elevated px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-text-faint outline-none ring-1 ring-border hover:ring-border-strong"
+          className="mb-1 w-28 rounded bg-surface-elevated px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-text-faint outline-none ring-1 ring-border hover:ring-border-strong"
         />
         {open && (
           <div className="absolute left-0 top-full z-[var(--z-dropdown)] mt-0.5 max-h-60 w-40 overflow-y-auto rounded-md border border-border bg-surface-elevated shadow-lg">
@@ -391,7 +391,7 @@ export function CodeEditor({
         )}
       </div>
 
-      <div className="relative flex-1 overflow-hidden rounded-md bg-[#282a36]">
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-md bg-[#282a36]">
         <Highlight
           theme={draculaTheme}
           code={content || " "}
