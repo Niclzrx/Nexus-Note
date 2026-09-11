@@ -360,7 +360,7 @@ export function CodeEditor({
           className="mb-1 w-28 rounded bg-surface-elevated px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-text-faint outline-none ring-1 ring-border hover:ring-border-strong"
         />
         {open && (
-          <div className="absolute left-0 top-full z-[var(--z-dropdown)] mt-0.5 max-h-60 w-40 overflow-y-auto rounded-md border border-border bg-surface-elevated shadow-lg">
+          <div className="absolute left-0 top-full z-50 mt-0.5 max-h-60 w-40 overflow-y-auto rounded-md border border-border bg-surface-elevated shadow-lg">
             {filtered.length === 0 && (
               <div className="px-2 py-1 text-[10px] text-text-faint">
                 No match
